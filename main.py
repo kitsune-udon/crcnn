@@ -4,4 +4,4 @@ from crcnn import ContextRCNN
 
 
 if __name__ == '__main__':
-    main(CCTDataModule, ConContextRCNN, "crcnn")
+    main(CCTDataModule, ContextRCNN, "crcnn")
