@@ -38,7 +38,7 @@ def main(dm_cls, model_cls, logger_name):
     logger = TensorBoardLogger('tb_logs', name=args.logger_name)
 
     checkpoint = ModelCheckpoint(
-        monitor='val_acc', save_top_k=args.save_top_k)
+        monitor='val_iou', save_top_k=args.save_top_k, mode="max")
 
     trainer = pl.Trainer.from_argparse_args(args,
                                             deterministic=True,

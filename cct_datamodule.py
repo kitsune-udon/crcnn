@@ -15,8 +15,6 @@ def collate_fn(batch):
         images.append(img)
         targets.append(t)
 
-    images = torch.stack(images)
-
     return images, targets
 
 
@@ -34,7 +32,6 @@ class CCTDataModule(pl.LightningDataModule):
         std = (0.25, 0.25, 0.25)
 
         self.transform = Compose([
-            Resize((768, 1024)), # invalid operation
             ToTensor(),
             Normalize(mean=mean,
                       std=std)
