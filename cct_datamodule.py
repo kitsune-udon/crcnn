@@ -27,11 +27,14 @@ class CCTDataModule(pl.LightningDataModule):
         self.train_batch_size = train_batch_size
         self.val_batch_size = val_batch_size
         self.num_workers = num_workers
+        self.img_width = 320
+        self.img_height = 320
 
         mean = (0.5, 0.5, 0.5)
         std = (0.25, 0.25, 0.25)
 
         self.transform = Compose([
+            Resize((self.img_height, self.img_width)),
             ToTensor(),
             Normalize(mean=mean,
                       std=std)
@@ -42,7 +45,9 @@ class CCTDataModule(pl.LightningDataModule):
 
     def train_dataloader(self, *args, **kwargs):
         cct_train = CCTDataset(
-            dataset_root=self.dataset_root, split="train", transform=self.transform)
+            dataset_root=self.dataset_root, split="train", transform=self.transform,
+            out_width=self.img_width,
+            out_height=self.img_height)
         return DataLoader(cct_train,
                           shuffle=True,
                           num_workers=self.num_workers,
@@ -51,7 +56,9 @@ class CCTDataModule(pl.LightningDataModule):
 
     def val_dataloader(self, *args, **kwargs):
         cct_val = CCTDataset(
-            dataset_root=self.dataset_root, split="val", transform=self.transform)
+            dataset_root=self.dataset_root, split="val", transform=self.transform,
+            out_width=self.img_width,
+            out_height=self.img_height)
         return DataLoader(cct_val,
                           shuffle=False,
                           num_workers=self.num_workers,
@@ -61,9 +68,9 @@ class CCTDataModule(pl.LightningDataModule):
     @staticmethod
     def add_argparse_args(parser):
         parser.add_argument("--train_batch_size", type=int,
-                            default=8, help="batch size for training")
+                            default=32, help="batch size for training")
         parser.add_argument("--val_batch_size", type=int,
-                            default=8, help="batch size for validation")
+                            default=32, help="batch size for validation")
         parser.add_argument("--num_workers", type=int, default=4,
                             help="number of processes for dataloader")
         parser.add_argument("--dataset_root", type=str,

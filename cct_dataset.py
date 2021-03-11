@@ -7,12 +7,16 @@ from torch.utils.data import Dataset
 
 
 class CCTDataset(Dataset):
-    def __init__(self, dataset_root="./dataset/cct", split="train", small_image=True, transform=None):
+    def __init__(self, dataset_root="./dataset/cct", split="train", resize=True, transform=None, out_width=None, out_height=None):
         super().__init__()
         self.dataset_root = dataset_root
         self.split = split
-        self.small_image = small_image
+        self.resize = resize
         self.transform = transform
+        self.out_width = out_width
+        self.out_height = out_height
+        if resize:
+            assert out_width is not None and out_height is not None
         self._set_path()
         self._process()
 
@@ -51,12 +55,15 @@ class CCTDataset(Dataset):
         
         def cat_trans():
             sorted_cats = sorted(map(lambda x: x["id"], self.categories))
+            id_to_name = {x["id"]: x for x in self.categories}
 
             r = {}
+            r_inv = {} 
             for i, e in enumerate(sorted_cats):
-                r[e] = i
+                r[e] = i + 1 # NOTE: backgrounds are classified to 0
+                r_inv[i + 1] = id_to_name[e]
 
-            return r
+            return r, r_inv
 
 
         with open(self.filepath, "r") as f:
@@ -67,7 +74,7 @@ class CCTDataset(Dataset):
         self.images = d["images"]
         self.annotations = d["annotations"]
         self.annotated_images = annotated_images()
-        self.cat_trans = cat_trans()
+        self.cat_trans, self.cat_trans_inv = cat_trans()
 
     def __len__(self):
         return len(self.annotated_images)
@@ -75,17 +82,20 @@ class CCTDataset(Dataset):
     def __getitem__(self, index):
         def get_target(annot_list, image_info):
             w = image_info["width"]
-            scale = 1
-
-            if self.small_image:
-                scale = 1024 / w
+            h = image_info["height"]
+            if self.resize:
+                sw = self.out_width / w
+                sh = self.out_height / h
 
             boxes, labels = [], []
             for annot in annot_list:
                 bbox = annot["bbox"]
                 x1, y1 = bbox[0], bbox[1]
                 x2, y2 = bbox[0] + bbox[2], bbox[1] + bbox[3]
-                bbox = list(map(lambda x: scale * x, [x1, y1, x2, y2]))
+                if self.resize:
+                    bbox = [sw * x1, sh * y1, sw * x2, sh * y2]
+                else:
+                    bbox = [x1, y1, x2, y2]
                 cid = self.cat_trans[annot["category_id"]]
                 boxes.append(bbox)
                 labels.append(cid)
@@ -106,9 +116,10 @@ class CCTDataset(Dataset):
 
 
 if __name__ == '__main__':
-    cct = CCTDataset()
+    cct = CCTDataset(out_width=320, out_height=320)
     img, target = cct[0]
     print(img)
     print(target)
     print(cct.categories)
     print(len(cct.categories))
+    print(cct.cat_trans_inv)

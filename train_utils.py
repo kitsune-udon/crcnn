@@ -37,12 +37,17 @@ def main(dm_cls, model_cls, logger_name):
 
     logger = TensorBoardLogger('tb_logs', name=args.logger_name)
 
+    #checkpoint = ModelCheckpoint(
+    #    monitor='val_map', save_top_k=args.save_top_k, mode="max")
+    #checkpoint = ModelCheckpoint("./checkpoints")
     checkpoint = ModelCheckpoint(
-        monitor='val_iou', save_top_k=args.save_top_k, mode="max")
+        "./checkpoints",
+        monitor='val_map', save_top_k=args.save_top_k, mode="max")
+    #checkpoint = False
 
     trainer = pl.Trainer.from_argparse_args(args,
                                             deterministic=True,
-                                            checkpoint_callback=checkpoint,
+                                            callbacks=[checkpoint],
                                             logger=logger
                                             )
 
