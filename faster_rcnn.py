@@ -1,7 +1,9 @@
 import itertools
 
 import pytorch_lightning as pl
+import torch
 from torch.optim import AdamW
+from torch.optim.lr_scheduler import StepLR
 from torchvision.models.detection.faster_rcnn import (FastRCNNPredictor,
                                                       fasterrcnn_resnet50_fpn)
 
@@ -18,7 +20,9 @@ class MyFasterRCNN(pl.LightningModule):
                  ):
         super().__init__(*args, **kwargs)
         self.save_hyperparameters()
+
         n_classes = 16
+
         self.net = fasterrcnn_resnet50_fpn(pretrained=True)
         in_features = self.net.roi_heads.box_predictor.cls_score.in_features
         self.net.roi_heads.box_predictor = FastRCNNPredictor(
@@ -35,14 +39,15 @@ class MyFasterRCNN(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         images, targets = batch
-        preds = self.net(images)
+        with torch.no_grad():
+            preds = self.net(images)
 
         return {'preds': preds, 'targets': targets}
 
     def validation_epoch_end(self, outputs):
         preds = itertools.chain(*[o["preds"] for o in outputs])
         targets = itertools.chain(*[o["targets"] for o in outputs])
-        mAP = mean_average_precision(preds, targets, 0.5)
+        mAP = mean_average_precision(preds, targets, 0.5, self.device)
 
         self.log("val_map", mAP, on_epoch=True, logger=True)
 
@@ -51,7 +56,9 @@ class MyFasterRCNN(pl.LightningModule):
                           lr=self.hparams.learning_rate,
                           weight_decay=self.hparams.weight_decay)
 
-        return [optimizer]
+        scheduler = StepLR(optimizer, 1, gamma=0.7)
+
+        return [optimizer], [scheduler]
 
     @classmethod
     def from_argparse_args(cls, args, **kwargs):

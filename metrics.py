@@ -23,9 +23,10 @@ def _mean_average_precision_sub(
     target_labels,
     target_bboxes,
     iou_threshold,
+    device,
 ):
     classes = torch.cat([pred_labels, target_labels]).unique()
-    average_precisions = torch.zeros(len(classes))
+    average_precisions = torch.zeros(len(classes), device=device)
 
     for class_idx, c in enumerate(classes):
         desc_indices = torch.argsort(pred_probs, descending=True)
@@ -39,11 +40,11 @@ def _mean_average_precision_sub(
             [idx.item() for idx in target_image_indices[target_labels == c]])
 
         targets_assigned = {
-            image_idx: torch.zeros(count, dtype=torch.bool) for image_idx, count in targets_per_images.items()
+            image_idx: torch.zeros(count, dtype=torch.bool, device=device) for image_idx, count in targets_per_images.items()
         }
 
-        tps = torch.zeros(len(desc_indices))
-        fps = torch.zeros(len(desc_indices))
+        tps = torch.zeros(len(desc_indices), device=device)
+        fps = torch.zeros(len(desc_indices), device=device)
 
         for i, pred_idx in enumerate(desc_indices):
             image_idx = pred_image_indices[pred_idx].item()
@@ -63,8 +64,8 @@ def _mean_average_precision_sub(
         precision = tps_cum / (tps_cum + fps_cum)
         num_targets = len(target_labels[target_labels == c])
         recall = tps_cum / num_targets if num_targets else tps_cum
-        precision = torch.cat([reversed(precision), torch.tensor([1.])])
-        recall = torch.cat([reversed(recall), torch.tensor([0.])])
+        precision = torch.cat([reversed(precision), torch.tensor([1.], device=device)])
+        recall = torch.cat([reversed(recall), torch.tensor([0.], device=device)])
         average_precision = - \
             torch.sum((recall[1:] - recall[:-1]) * precision[:-1])
         average_precisions[class_idx] = average_precision
@@ -74,9 +75,9 @@ def _mean_average_precision_sub(
     return mean_average_precision
 
 
-def mean_average_precision(preds, targets, iou_threshold):
+def mean_average_precision(preds, targets, iou_threshold, device):
     def op(x):
-        return torch.cat(x).cpu()
+        return torch.cat(x).to(device)
 
     p_probs, p_labels, p_bboxes, p_image_indices = [], [], [], []
     for i, pred in enumerate(preds):
@@ -100,10 +101,10 @@ def mean_average_precision(preds, targets, iou_threshold):
     assert len(t_labels) == len(t_bboxes) and len(
         t_labels) == len(t_image_indices)
 
-    return _mean_average_precision_sub(p_image_indices, p_probs, p_labels, p_bboxes, t_image_indices, t_labels, t_bboxes, iou_threshold)
+    return _mean_average_precision_sub(p_image_indices, p_probs, p_labels, p_bboxes, t_image_indices, t_labels, t_bboxes, iou_threshold, device)
 
 
-def _test_mAP():
+def _test_mAP(device):
     def sample1():
         preds = [{"scores": torch.tensor([0.9]),
                   "labels": torch.tensor([0]),
@@ -166,19 +167,20 @@ def _test_mAP():
         for xs in [preds, targets]:
             for x in xs:
                 for k, v in x.items():
-                    x[k] = torch.tensor(v)
+                    x[k] = torch.tensor(v, device=device)
 
         iou_threshold = 0.5
-        args = [preds, targets, iou_threshold]
+        args = [preds, targets, iou_threshold, device]
         expected_value = 0.75
         return args, expected_value
 
     def proc(args, expected):
-        mAP = mean_average_precision(*args)
-        print(f"mAP:{mAP} expected mAP:{expected}")
+        mAP = mean_average_precision(*args) # mAP is torch.tensor()
+        print(f"on {mAP.device} mAP:{mAP} expected mAP:{expected}")
 
     proc(*sample3())
 
 
 if __name__ == '__main__':
-    _test_mAP()
+    device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+    _test_mAP(device)
