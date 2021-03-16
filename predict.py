@@ -1,6 +1,5 @@
 
 import argparse
-from cct_annotation_handler import CCTAnnotationHandler
 import itertools
 
 import torch
@@ -9,15 +8,15 @@ from pytorch_lightning.utilities.seed import seed_everything
 from torchvision.transforms import Compose, Normalize, ToPILImage
 from torchvision.transforms.transforms import Normalize
 
+from cct_annotation_handler import CCTAnnotationHandler
 from cct_datamodule import CCTDataModule
-from cct_dataset import CCTDataset
 from crcnn import ContextRCNN
 
 
 class InverseTransform():
     def __init__(self, mean, std):
-        dst_mean = mean.__class__(map(lambda x: -x, mean))
-        dst_std = std.__class__(map(lambda x: 1. / x, std))
+        dst_mean = mean.__class__([-x for x in mean])
+        dst_std = std.__class__([1. / x for x in std])
         self._transform = Compose([
             Normalize(mean=(0., 0., 0.), std=dst_std),
             Normalize(mean=dst_mean, std=(1., 1., 1.)),
@@ -87,7 +86,7 @@ def extract_images_and_preds(ckpt_path, max_images=30):
         n_images = len(images)
         if count + n_images > max_images:
             break
-        images = list(map(lambda x: x.to(device), images))
+        images = [x.to(device) for x in images]
         with torch.no_grad():
             preds = model.net(images)
         images0.append(images)
@@ -109,7 +108,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--ckpt", type=str, default=None,
                         help="path of the checkpoint")
-    parser.add_argument("--threshold", type=float, default=0.95,
+    parser.add_argument("--threshold", type=float, default=0.,
                         help="threshold of detection score")
     parser.add_argument("--max_images", type=int, default=30,
                         help="number of output images")
@@ -121,7 +120,8 @@ if __name__ == '__main__':
 
     images, preds = extract_images_and_preds(args.ckpt, args.max_images)
     cct_handler = CCTAnnotationHandler()
-    label_to_name = {k: v["name"] for k, v in cct_handler.cat_trans_inv["val"].items()}
+    label_to_name = {k: v["name"]
+                     for k, v in cct_handler.cat_trans_inv["val"].items()}
 
     rendered = []
     for i in range(len(images)):

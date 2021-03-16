@@ -1,6 +1,6 @@
 import json
 import os
-
+from datetime import datetime
 
 class CCTAnnotationHandler():
     def __init__(self, root_dir="./dataset/cct", adjust_to_faster_rcnn=True):
@@ -10,6 +10,8 @@ class CCTAnnotationHandler():
         self._read_annotation_files()
         self._generate_categories_table()
         self._generate_annotated_images()
+        self._generate_locations()
+        self._generate_images_by_location()
 
     def _read_annotation_files(self):
         self._images = {}
@@ -38,7 +40,7 @@ class CCTAnnotationHandler():
         self.cat_trans_inv = {}
 
         for split in self.split_types:
-            sorted_cats = sorted(map(lambda x: x["id"], self._cats[split]))
+            sorted_cats = sorted([x["id"] for x in self._cats[split]])
             id_to_name = {x["id"]: x for x in self._cats[split]}
 
             t = {}
@@ -76,12 +78,36 @@ class CCTAnnotationHandler():
 
             self.annotated_images[split] = r
 
+    def _generate_locations(self):
+        self._locs = {}
+
+        for split in self.split_types:
+            locs = sorted(set([x["location"] for x in self._images[split]]))
+            self._locs[split] = locs
+    
+    def _generate_images_by_location(self):
+        self._images_by_location = {}
+
+        for split in self.split_types:
+            self._images_by_location[split] = {}
+            d = self._images_by_location[split]
+
+            for img in self._images[split]:
+                loc = img["location"]
+                d.setdefault(loc, [])
+                d[loc].append(img)
+            
+            for loc in self._locs[split]:
+                d[loc] = sorted(d[loc], key=lambda x: datetime.fromisoformat(x["date_captured"]))
+
     def get_image_path(self, filename):
         image_path = os.path.join(
             self.root_dir, "eccv_18_all_images_sm", filename)
+
         return image_path
 
 
 if __name__ == '__main__':
     h = CCTAnnotationHandler()
-    print(h.annotated_images["train"][0])
+    loc = h._locs["train"][0]
+    print(loc)
