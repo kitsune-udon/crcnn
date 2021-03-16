@@ -33,15 +33,18 @@ class ContextRCNN(pl.LightningModule):
 
         def hook(module, input):
             pooled = F.max_pool2d(input[0], kernel_size=7).squeeze(-1).squeeze(-1)
-            print(pooled.size())
+            #print(pooled.size())
             return input
         
         def hook2(module, input):
-            features = input[0]
-            print(features.size())
+            self.tmp_features = input[0]
+            self.tmp_image_sizes = input[2]
             return input
+
+        def hook3(module, input, output):
+            print(f"box_roi_pool_out {output.size()}")
         self.net.roi_heads.box_head.register_forward_pre_hook(hook)
-        self.net.box_roi_pool.register_forward_pre_hook(hook2)
+        self.net.roi_heads.box_roi_pool.register_forward_pre_hook(hook2)
 
     def training_step(self, batch, batch_idx):
         loss = torch.tensor(0.)

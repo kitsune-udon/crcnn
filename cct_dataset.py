@@ -5,18 +5,23 @@ import torch
 from PIL import Image
 from torch.utils.data import Dataset
 
+from torchvision.transforms.transforms import Compose, Normalize, ToTensor, Resize
 
 class CCTDataset(Dataset):
-    def __init__(self, dataset_root="./dataset/cct", split="train", resize=True, transform=None, out_width=None, out_height=None):
+    def __init__(self, dataset_root="./dataset/cct", split="train"):
         super().__init__()
         self.dataset_root = dataset_root
         self.split = split
-        self.resize = resize
-        self.transform = transform
-        self.out_width = out_width
-        self.out_height = out_height
-        if resize:
-            assert out_width is not None and out_height is not None
+        self.out_width = 320
+        self.out_height = 320
+        self.mean = (0.5, 0.5, 0.5)
+        self.std = (0.25, 0.25, 0.25)
+        self.transform = Compose([
+            Resize((self.out_height, self.out_width)),
+            ToTensor(),
+            Normalize(mean=self.mean,
+                      std=self.std)
+        ])
         self._set_path()
         self._process()
 
@@ -83,19 +88,15 @@ class CCTDataset(Dataset):
         def get_target(annot_list, image_info):
             w = image_info["width"]
             h = image_info["height"]
-            if self.resize:
-                sw = self.out_width / w
-                sh = self.out_height / h
+            sw = self.out_width / w
+            sh = self.out_height / h
 
             boxes, labels = [], []
             for annot in annot_list:
                 bbox = annot["bbox"]
                 x1, y1 = bbox[0], bbox[1]
                 x2, y2 = bbox[0] + bbox[2], bbox[1] + bbox[3]
-                if self.resize:
-                    bbox = [sw * x1, sh * y1, sw * x2, sh * y2]
-                else:
-                    bbox = [x1, y1, x2, y2]
+                bbox = [sw * x1, sh * y1, sw * x2, sh * y2]
                 cid = self.cat_trans[annot["category_id"]]
                 boxes.append(bbox)
                 labels.append(cid)
@@ -106,17 +107,13 @@ class CCTDataset(Dataset):
         image_path = os.path.join(
             self.dataset_root, "eccv_18_all_images_sm", image_info["file_name"])
         img = Image.open(image_path).convert("RGB")
-
         target = get_target(annot_list, image_info)
 
-        if self.transform:
-            return self.transform(img), target
-        else:
-            return img, target
+        return self.transform(img), target
 
 
 if __name__ == '__main__':
-    cct = CCTDataset(split="train", out_width=320, out_height=320)
+    cct = CCTDataset(split="train")
     locations = set(map(lambda x: x["location"], cct.images))
 
     def seq_ids_by_loc(loc):

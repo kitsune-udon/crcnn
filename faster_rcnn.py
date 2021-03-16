@@ -11,6 +11,21 @@ from argparse_utils import from_argparse_args
 from metrics import mean_average_precision
 
 
+def generate_my_model(n_classes):
+    model = fasterrcnn_resnet50_fpn(
+        pretrained=True,
+        min_size=320, max_size=320,
+        image_mean=(0.5, 0.5, 0.5),
+        image_std=(0.25, 0.25, 0.25),
+        trainable_backbone_layers=5
+    )
+    in_features = model.roi_heads.box_predictor.cls_score.in_features
+    model.roi_heads.box_predictor = FastRCNNPredictor(
+        in_features, n_classes + 1)
+
+    return model
+
+
 class MyFasterRCNN(pl.LightningModule):
     def __init__(self,
                  *args,
@@ -22,11 +37,7 @@ class MyFasterRCNN(pl.LightningModule):
         self.save_hyperparameters()
 
         n_classes = 16
-
-        self.net = fasterrcnn_resnet50_fpn(pretrained=True)
-        in_features = self.net.roi_heads.box_predictor.cls_score.in_features
-        self.net.roi_heads.box_predictor = FastRCNNPredictor(
-            in_features, n_classes + 1)
+        self.net = generate_my_model(n_classes)
 
     def training_step(self, batch, batch_idx):
         images, targets = batch

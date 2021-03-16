@@ -1,7 +1,6 @@
 import pytorch_lightning as pl
 import torch
 from torch.utils.data import DataLoader
-from torchvision.transforms.transforms import Compose, Normalize, ToTensor, Resize
 
 from argparse_utils import from_argparse_args
 from cct_dataset import CCTDataset
@@ -27,27 +26,13 @@ class CCTDataModule(pl.LightningDataModule):
         self.train_batch_size = train_batch_size
         self.val_batch_size = val_batch_size
         self.num_workers = num_workers
-        self.img_width = 320
-        self.img_height = 320
-
-        mean = (0.5, 0.5, 0.5)
-        std = (0.25, 0.25, 0.25)
-
-        self.transform = Compose([
-            Resize((self.img_height, self.img_width)),
-            ToTensor(),
-            Normalize(mean=mean,
-                      std=std)
-        ])
 
     def prepare_data(self, *args, **kwargs):
         pass
 
     def train_dataloader(self, *args, **kwargs):
         cct_train = CCTDataset(
-            dataset_root=self.dataset_root, split="train", transform=self.transform,
-            out_width=self.img_width,
-            out_height=self.img_height)
+            dataset_root=self.dataset_root, split="train")
         return DataLoader(cct_train,
                           shuffle=True,
                           num_workers=self.num_workers,
@@ -56,9 +41,7 @@ class CCTDataModule(pl.LightningDataModule):
 
     def val_dataloader(self, *args, **kwargs):
         cct_val = CCTDataset(
-            dataset_root=self.dataset_root, split="val", transform=self.transform,
-            out_width=self.img_width,
-            out_height=self.img_height)
+            dataset_root=self.dataset_root, split="val")
         return DataLoader(cct_val,
                           shuffle=False,
                           num_workers=self.num_workers,
@@ -81,6 +64,7 @@ class CCTDataModule(pl.LightningDataModule):
     @classmethod
     def from_argparse_args(cls, args, **kwargs):
         return from_argparse_args(cls, args, **kwargs)
+
 
 if __name__ == '__main__':
     dm = CCTDataModule()

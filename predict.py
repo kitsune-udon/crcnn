@@ -9,15 +9,16 @@ from torchvision.transforms import Compose, Normalize, ToPILImage
 from torchvision.transforms.transforms import Normalize
 
 from crcnn import ContextRCNN
-from simple_datamodule import SimpleDataModule
 from cct_datamodule import CCTDataModule
 from cct_dataset import CCTDataset
 
 class InverseTransform():
-    def __init__(self):
+    def __init__(self, mean, std):
+        dst_mean = mean.__class__(map(lambda x: -x, mean))
+        dst_std = std.__class__(map(lambda x: 1. / x, std))
         self._transform = Compose([
-            Normalize(mean=(0., 0., 0.), std=(4., 4., 4.)),
-            Normalize(mean=(-0.5, -0.5, -0.5), std=(1., 1., 1.)),
+            Normalize(mean=(0., 0., 0.), std=dst_std),
+            Normalize(mean=dst_mean, std=(1., 1., 1.)),
             ToPILImage()])
 
     def transform(self, x):
@@ -68,7 +69,9 @@ def generate_tiles(images, n_col=3):
 
 def extract_images_and_preds(ckpt_path, max_images=30):
     dataloader = CCTDataModule().val_dataloader()
-    inv = InverseTransform()
+    mean = dataloader.dataset.mean
+    std = dataloader.dataset.std
+    inv = InverseTransform(mean, std)
 
     device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
     model = ContextRCNN.load_from_checkpoint(ckpt_path)
@@ -114,7 +117,7 @@ if not args.ckpt:
 seed_everything(0)
 
 images, preds = extract_images_and_preds(args.ckpt, args.max_images)
-dataset = CCTDataset(out_width=320, out_height=320)
+dataset = CCTDataset(split="val")
 label_to_name = {k: v["name"] for k, v in dataset.cat_trans_inv.items()}
 
 rendered = []

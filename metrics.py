@@ -105,28 +105,6 @@ def mean_average_precision(preds, targets, iou_threshold, device):
 
 
 def _test_mAP(device):
-    def sample1():
-        preds = [{"scores": torch.tensor([0.9]),
-                  "labels": torch.tensor([0]),
-                  "boxes": torch.tensor([[0., 0., 100., 100.]])}]
-        targets = [{"labels": torch.tensor([0]),
-                    "boxes": torch.tensor([[10., 10., 110., 110.]])}]
-        iou_threshold = 0.5
-        args = [preds, targets, iou_threshold]
-        expected_value = 1.0
-        return args, expected_value
-
-    def sample2():
-        preds = [{"scores": torch.tensor([0.9, 0.9]),
-                  "labels": torch.tensor([0, 1]),
-                  "boxes": torch.tensor([[0., 0., 100., 100.], [90., 90., 190., 190.]])}]
-        targets = [{"labels": torch.tensor([0]),
-                    "boxes": torch.tensor([[10., 10., 110., 110.]])}]
-        iou_threshold = 0.5
-        args = [preds, targets, iou_threshold]
-        expected_value = 0.5
-        return args, expected_value
-
     def sample3():
         def insert_dummy(preds):
             n_dummy = 1
@@ -138,32 +116,22 @@ def _test_mAP(device):
                 pred["labels"] += dummy_labels
                 pred["boxes"] += dummy_boxes
 
+        box_0 = [0., 0., 100., 100.]
+        box_1 = [10., 10., 110., 110.]
+
         preds = [
-            {"scores": [0.9],
-             "labels": [0],
-             "boxes": [[0., 0., 100., 100.]]
-             },
-            {"scores": [0.9],
-             "labels": [1],
-             "boxes": [[0., 0., 100., 100.]]
-             },
-            {"scores": [0.9],
-             "labels": [2],
-             "boxes": [[0., 0., 100., 100.]]
-             }
+            {"scores": [0.9], "labels": [0], "boxes": [box_0]},
+            {"scores": [0.9], "labels": [1], "boxes": [box_0]},
+            {"scores": [0.9], "labels": [2], "boxes": [box_0]},
         ]
         targets = [
-            {"labels": [0],
-             "boxes": [[10., 10., 110., 110.]]
-             },
-            {"labels": [1],
-             "boxes": [[10., 10., 110., 110.]]
-             },
-            {"labels": [2],
-             "boxes": [[10., 10., 110., 110.]]
-             }
+            {"labels": [0], "boxes": [box_1]},
+            {"labels": [1], "boxes": [box_1]},
+            {"labels": [2], "boxes": [box_1]},
         ]
+
         insert_dummy(preds)
+
         for xs in [preds, targets]:
             for x in xs:
                 for k, v in x.items():

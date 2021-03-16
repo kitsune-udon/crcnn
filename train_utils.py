@@ -3,7 +3,6 @@ from pprint import pprint
 from warnings import warn
 
 import pytorch_lightning as pl
-from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.utilities.seed import seed_everything
 
@@ -16,7 +15,7 @@ def validate_args(args):
         warn("In a distributed running, '--seed' option must be specified.")
 
 
-def main(dm_cls, model_cls, logger_name):
+def main(dm_cls, model_cls, logger_name, callbacks=None):
     parser = ArgumentParser()
 
     parser.add_argument("--seed", type=int, default=None, help="random seed")
@@ -39,17 +38,9 @@ def main(dm_cls, model_cls, logger_name):
 
     logger = TensorBoardLogger('tb_logs', name=args.logger_name)
 
-    #checkpoint = ModelCheckpoint(
-    #    monitor='val_map', save_top_k=args.save_top_k, mode="max")
-    #checkpoint = ModelCheckpoint("./checkpoints")
-    checkpoint = ModelCheckpoint(
-        "./checkpoints",
-        monitor='val_map', save_top_k=args.save_top_k, mode="max")
-    #checkpoint = False
-
     trainer = pl.Trainer.from_argparse_args(args,
                                             deterministic=True,
-                                            callbacks=[checkpoint],
+                                            callbacks=callbacks,
                                             logger=logger
                                             )
 
