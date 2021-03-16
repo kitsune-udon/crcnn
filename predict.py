@@ -1,5 +1,6 @@
 
 import argparse
+from cct_annotation_handler import CCTAnnotationHandler
 import itertools
 
 import torch
@@ -119,8 +120,8 @@ if __name__ == '__main__':
     seed_everything(0)
 
     images, preds = extract_images_and_preds(args.ckpt, args.max_images)
-    dataset = CCTDataset(split="val")
-    label_to_name = {k: v["name"] for k, v in dataset.cat_trans_inv.items()}
+    cct_handler = CCTAnnotationHandler()
+    label_to_name = {k: v["name"] for k, v in cct_handler.cat_trans_inv["val"].items()}
 
     rendered = []
     for i in range(len(images)):

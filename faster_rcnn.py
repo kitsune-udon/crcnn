@@ -16,7 +16,7 @@ def generate_my_model():
 
     model = fasterrcnn_resnet50_fpn(
         pretrained=True,
-        min_size=320, max_size=320,
+        min_size=640, max_size=640,
         image_mean=(0.5, 0.5, 0.5),
         image_std=(0.25, 0.25, 0.25),
         trainable_backbone_layers=5
