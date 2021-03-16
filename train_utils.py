@@ -1,4 +1,5 @@
 from argparse import ArgumentParser
+from pprint import pprint
 from warnings import warn
 
 import pytorch_lightning as pl
@@ -30,7 +31,8 @@ def main(dm_cls, model_cls, logger_name):
 
     args = parser.parse_args()
 
-    print(f"received command line arguments: {args}")
+    print(f"received command line arguments:")
+    pprint(vars(args), depth=1)
 
     validate_args(args)
     seed_everything(args.seed)

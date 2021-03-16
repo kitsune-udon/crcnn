@@ -116,10 +116,12 @@ class CCTDataset(Dataset):
 
 
 if __name__ == '__main__':
-    cct = CCTDataset(out_width=320, out_height=320)
-    img, target = cct[0]
-    print(img)
-    print(target)
-    print(cct.categories)
-    print(len(cct.categories))
-    print(cct.cat_trans_inv)
+    cct = CCTDataset(split="train", out_width=320, out_height=320)
+    locations = set(map(lambda x: x["location"], cct.images))
+
+    def seq_ids_by_loc(loc):
+        seq_ids = {img["seq_id"] for img in cct.images if img["location"] == loc}
+        return seq_ids
+
+    n_images_by_loc = [[loc, len([img for img in cct.images if img["location"] == loc])] for loc in locations]
+    print(n_images_by_loc)

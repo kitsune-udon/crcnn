@@ -6,4 +6,4 @@ from simple_datamodule import SimpleDataModule
 
 
 if __name__ == '__main__':
-    main(CCTDataModule, MyFasterRCNN, "faster_rcnn")
+    main(CCTDataModule, ContextRCNN, "crcnn")

@@ -40,7 +40,9 @@ def draw_prediction(img, pred, threshold, label_to_name=None):
                 text = label_to_name[label]
             else:
                 text = f"{label}"
-            draw.text(box[0:2], text, fill=color, font=font)
+            h = font.getsize(text)[1]
+            pos = [box[0], box[1] - h]
+            draw.text(pos, text, fill=color, font=font)
         img = Image.alpha_composite(img, overlay)
     return img.convert("RGB")
 
