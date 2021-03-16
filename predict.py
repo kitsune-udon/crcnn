@@ -8,9 +8,10 @@ from pytorch_lightning.utilities.seed import seed_everything
 from torchvision.transforms import Compose, Normalize, ToPILImage
 from torchvision.transforms.transforms import Normalize
 
-from crcnn import ContextRCNN
 from cct_datamodule import CCTDataModule
 from cct_dataset import CCTDataset
+from crcnn import ContextRCNN
+
 
 class InverseTransform():
     def __init__(self, mean, std):
@@ -103,27 +104,29 @@ def extract_images_and_preds(ckpt_path, max_images=30):
     return images2, preds1
 
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--ckpt", type=str, default=None,
-                    help="path of the checkpoint")
-parser.add_argument("--threshold", type=float, default=0.95,
-                    help="threshold of detection score")
-parser.add_argument("--max_images", type=int, default=30,
-                    help="number of output images")
-args = parser.parse_args()
-if not args.ckpt:
-    raise ValueError("--ckpt option is not specified")
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--ckpt", type=str, default=None,
+                        help="path of the checkpoint")
+    parser.add_argument("--threshold", type=float, default=0.95,
+                        help="threshold of detection score")
+    parser.add_argument("--max_images", type=int, default=30,
+                        help="number of output images")
+    args = parser.parse_args()
+    if not args.ckpt:
+        raise ValueError("--ckpt option is not specified")
 
-seed_everything(0)
+    seed_everything(0)
 
-images, preds = extract_images_and_preds(args.ckpt, args.max_images)
-dataset = CCTDataset(split="val")
-label_to_name = {k: v["name"] for k, v in dataset.cat_trans_inv.items()}
+    images, preds = extract_images_and_preds(args.ckpt, args.max_images)
+    dataset = CCTDataset(split="val")
+    label_to_name = {k: v["name"] for k, v in dataset.cat_trans_inv.items()}
 
-rendered = []
-for i in range(len(images)):
-    img = draw_prediction(images[i], preds[i], args.threshold, label_to_name=label_to_name)
-    rendered.append(img)
+    rendered = []
+    for i in range(len(images)):
+        img = draw_prediction(
+            images[i], preds[i], args.threshold, label_to_name=label_to_name)
+        rendered.append(img)
 
-out_img = generate_tiles(rendered)
-out_img.save("prediction_result.png")
+    out_img = generate_tiles(rendered)
+    out_img.save("prediction_result.png")

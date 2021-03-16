@@ -11,7 +11,9 @@ from argparse_utils import from_argparse_args
 from metrics import mean_average_precision
 
 
-def generate_my_model(n_classes):
+def generate_my_model():
+    n_classes = 16
+
     model = fasterrcnn_resnet50_fpn(
         pretrained=True,
         min_size=320, max_size=320,
@@ -36,8 +38,7 @@ class MyFasterRCNN(pl.LightningModule):
         super().__init__(*args, **kwargs)
         self.save_hyperparameters()
 
-        n_classes = 16
-        self.net = generate_my_model(n_classes)
+        self.net = generate_my_model()
 
     def training_step(self, batch, batch_idx):
         images, targets = batch

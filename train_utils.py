@@ -1,10 +1,22 @@
+import shutil
 from argparse import ArgumentParser
 from pprint import pprint
 from warnings import warn
 
 import pytorch_lightning as pl
+from pytorch_lightning.callbacks import Callback
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.utilities.seed import seed_everything
+
+
+class CopyBestCheckpoint(Callback):
+    def __init__(self, dest_path, checkpoint_callback):
+        self.dst = dest_path
+        self.checkpoint_callback = checkpoint_callback
+
+    def on_fit_end(self, trainer, pl_module):
+        src = self.checkpoint_callback.best_model_path
+        shutil.copy(src, self.dst)
 
 
 def validate_args(args):
@@ -19,10 +31,6 @@ def main(dm_cls, model_cls, logger_name, callbacks=None):
     parser = ArgumentParser()
 
     parser.add_argument("--seed", type=int, default=None, help="random seed")
-    parser.add_argument("--logger_name", type=str,
-                        default=logger_name, help="logger name to identify")
-    parser.add_argument("--save_top_k", type=int, default=1,
-                        help="num of best models to save")
 
     parser = pl.Trainer.add_argparse_args(parser)
     parser = dm_cls.add_argparse_args(parser)
@@ -36,7 +44,7 @@ def main(dm_cls, model_cls, logger_name, callbacks=None):
     validate_args(args)
     seed_everything(args.seed)
 
-    logger = TensorBoardLogger('tb_logs', name=args.logger_name)
+    logger = TensorBoardLogger('tb_logs', name=logger_name)
 
     trainer = pl.Trainer.from_argparse_args(args,
                                             deterministic=True,
