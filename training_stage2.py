@@ -147,6 +147,6 @@ if __name__ == '__main__':
 
             pbf = list(itertools.chain(*pbf))
             pbf = torch.cat(pbf)
-            per_box_features[split][loc] = pbf
+            per_box_features[split][loc] = pbf.cpu()
 
     torch.save(per_box_features, "memory_long.pt")

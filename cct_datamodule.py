@@ -6,14 +6,7 @@ from cct_dataset import CCTDataset
 
 
 def collate_fn(batch):
-    images, targets = [], []
-
-    for x in batch:
-        img, t = x
-        images.append(img)
-        targets.append(t)
-
-    return images, targets
+    return list(zip(*batch))
 
 
 class CCTDataModule(pl.LightningDataModule):
@@ -32,6 +25,7 @@ class CCTDataModule(pl.LightningDataModule):
     def train_dataloader(self, *args, **kwargs):
         cct_train = CCTDataset(
             dataset_root=self.dataset_root, split="train")
+
         return DataLoader(cct_train,
                           shuffle=True,
                           num_workers=self.num_workers,
@@ -41,6 +35,7 @@ class CCTDataModule(pl.LightningDataModule):
     def val_dataloader(self, *args, **kwargs):
         cct_val = CCTDataset(
             dataset_root=self.dataset_root, split="val")
+
         return DataLoader(cct_val,
                           shuffle=False,
                           num_workers=self.num_workers,

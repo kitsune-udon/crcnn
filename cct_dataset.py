@@ -8,6 +8,8 @@ from cct_annotation_handler import CCTAnnotationHandler
 
 
 class CCTDataset(Dataset):
+    stage3 = False
+
     def __init__(self, dataset_root="./dataset/cct", split="train"):
         super().__init__()
         self.dataset_root = dataset_root
@@ -23,6 +25,9 @@ class CCTDataset(Dataset):
                       std=self.std)
         ])
         self.handler = CCTAnnotationHandler(root_dir=self.dataset_root)
+        if CCTDataset.stage3:
+            self.memory_long_table = torch.load(
+                "memory_long.pt", map_location=torch.device('cpu'))
 
     def __len__(self):
         return len(self.handler.annotated_images[self.split])
@@ -33,7 +38,12 @@ class CCTDataset(Dataset):
         img = Image.open(image_path).convert("RGB")
         target = self._get_target(annot_list, image_info)
 
-        return self.transform(img), target
+        if CCTDataset.stage3:
+            loc = image_info["location"]
+            memory_long = self.memory_long_table[self.split][loc]
+            return self.transform(img), target, memory_long
+        else:
+            return self.transform(img), target
 
     def _get_target(self, annot_list, image_info):
         w = image_info["width"]
@@ -55,6 +65,7 @@ class CCTDataset(Dataset):
 
 
 if __name__ == '__main__':
+    CCTDataset.stage3 = True
     cct = CCTDataset()
-    print(cct[0])
-    print(len(cct))
+    print(cct[0][2])
+    print(cct[0][2].size())
