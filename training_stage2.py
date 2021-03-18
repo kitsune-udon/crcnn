@@ -101,7 +101,7 @@ def get_spatiotemporal(images, boxes, date_captured):
 
 if __name__ == '__main__':
     ckpt_path = "best_faster_rcnn.ckpt"
-    device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     module = MyFasterRCNN.load_from_checkpoint(ckpt_path).to(device).eval()
     tmp = {}
     prepare_faster_rcnn(module, tmp)
@@ -135,8 +135,7 @@ if __name__ == '__main__':
                     boxes_per_image = [len(x["boxes"]) for x in preds]
                     feat = module.net.roi_heads.box_roi_pool(
                         tmp["features"], boxes, tmp["image_sizes"])
-                    feat = F.max_pool2d(
-                        feat, kernel_size=7).squeeze(-1).squeeze(-1)
+                    feat = F.max_pool2d(feat, kernel_size=7).squeeze(-1).squeeze(-1)
                     feat = feat.split(boxes_per_image)
                     spatiotemporal = get_spatiotemporal(
                         images, boxes, date_captured)

@@ -12,30 +12,51 @@ from argparse_utils import from_argparse_args
 from faster_rcnn import MyFasterRCNN
 from metrics import mean_average_precision
 
-
-class AttentionBlock(nn.Module):
-    def __init__(self, feature_depth=256, spatiotemporal_size=9):
+# Current memory bank of my context r-cnn implementation is variable length.
+# So, Batch-Normalization is not for my context r-cnn implementation,
+# it could be applied to a fix length memory bank version.
+class ContextProjection(nn.Module):
+    def __init__(self, in_dim, out_dim, normalize_output=True, use_batchnorm=False):
         super().__init__()
-        self.feature_depth = feature_depth
-        q_in_dim = self.feature_depth
-        qk_out_dim = self.feature_depth
-        kv_in_dim = self.feature_depth + spatiotemporal_size
-        v_out_dim = self.feature_depth
-        f_out_dim = self.feature_depth
-        self.q = nn.Linear(q_in_dim, qk_out_dim)
-        self.k = nn.Linear(kv_in_dim, qk_out_dim)
-        self.v = nn.Linear(kv_in_dim, v_out_dim)
-        self.f = nn.Linear(v_out_dim, f_out_dim)
+        self.linear = nn.Linear(in_dim, out_dim)
+        if use_batchnorm:
+            self.bn = nn.BatchNorm1d(out_dim)
+        self.relu = nn.ReLU(inplace=True)
+        self.normalize_output = normalize_output
+        self.use_batchnorm = use_batchnorm
+
+    def forward(self, x):
+        if self.use_batchnorm:
+            x = self.relu(self.bn(self.linear(x)))
+        else:
+            x = self.relu(self.linear(x))
+        if self.normalize_output:
+            return F.normalize(x, p=2, dim=-1)
+        else:
+            return x
+
+# should use dropouts for generalization?
+class AttentionBlock(nn.Module):
+    def __init__(self,
+                 q_in_dim=256,
+                 qk_out_dim=512,
+                 v_out_dim=512,
+                 spatiotemporal_size=9,
+                 temparature=0.1):
+        super().__init__()
+        self.temparature = temparature
+        self.q_in_dim = q_in_dim
+        kv_in_dim = q_in_dim + spatiotemporal_size
+        self.q = ContextProjection(q_in_dim, qk_out_dim)
+        self.k = ContextProjection(kv_in_dim, qk_out_dim)
+        self.v = ContextProjection(kv_in_dim, v_out_dim)
+        self.f = ContextProjection(v_out_dim, q_in_dim, normalize_output=False)
 
     def forward(self, A, B):
-        q = self.q(F.max_pool2d(A, kernel_size=7).squeeze(-1).squeeze(-1))
-        k = self.k(B)
-        v = self.v(B)
-        # normalize is necessary?
-        temparature = 0.1
-        qk = q.matmul(k.transpose(1, 0))
-        w = F.softmax(
-            qk / (temparature * math.sqrt(self.feature_depth)), dim=0)
+        scaler = 1. / (self.temparature * math.sqrt(self.q_in_dim))
+        q, k, v = self.q(A), self.k(B), self.v(B)
+        qk = torch.einsum("ij,kj->ik", q, k)
+        w = F.softmax(qk * scaler, dim=-1)
         f = self.f(w.matmul(v))
 
         return f
@@ -49,13 +70,16 @@ def prepare_faster_rcnn(crcnn_module, tmp):
 
     def hook2(module, input):
         boxes_per_images = [x.shape[0] for x in tmp["proposals"]]
-        features = input[0].split(boxes_per_images)
+        features = input[0]
+        features = features.split(boxes_per_images)
 
         r = []
         for feature, memory_long in zip(features, tmp["memory_long"]):
-            context = crcnn_module.attention(feature, memory_long)
-            context = context.unsqueeze(-1).unsqueeze(-1)
-            feature_with_context = feature + context
+            feature_pooled = F.max_pool2d(
+                feature, kernel_size=7).squeeze(-1).squeeze(-1)
+            context = crcnn_module.attention(feature_pooled, memory_long)
+            feature_with_context = feature + \
+                context.unsqueeze(-1).unsqueeze(-1)
             r.append(feature_with_context)
 
         return torch.cat(r)
@@ -76,7 +100,6 @@ class ContextRCNN(pl.LightningModule):
 
         self.net = MyFasterRCNN.load_from_checkpoint(
             "best_faster_rcnn.ckpt").net
-        self.net.eval()
         self.attention = AttentionBlock()
         self._tmp = {}
         prepare_faster_rcnn(self, self._tmp)
@@ -107,7 +130,9 @@ class ContextRCNN(pl.LightningModule):
         self.log("val_map", mAP, on_epoch=True, logger=True)
 
     def configure_optimizers(self):
-        optimizer = AdamW(self.attention.parameters(),
+        params = [{'params': self.attention.parameters()},
+                  {'params': self.net.roi_heads.box_head.parameters()}] # need?
+        optimizer = AdamW(params,
                           lr=self.hparams.learning_rate,
                           weight_decay=self.hparams.weight_decay)
 

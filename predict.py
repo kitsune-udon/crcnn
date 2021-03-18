@@ -10,6 +10,7 @@ from torchvision.transforms.transforms import Normalize
 
 from cct_annotation_handler import CCTAnnotationHandler
 from cct_datamodule import CCTDataModule
+from cct_dataset import CCTDataset
 from crcnn import ContextRCNN
 
 
@@ -68,7 +69,9 @@ def generate_tiles(images, n_col=3):
     return out_img
 
 
-def extract_images_and_preds(ckpt_path, max_images=30):
+def extract_images_and_preds(ckpt_path, max_images=30, stage3=False):
+    if stage3:
+        CCTDataset.stage3 = True
     dataloader = CCTDataModule().val_dataloader()
     mean = dataloader.dataset.mean
     std = dataloader.dataset.std
@@ -82,7 +85,11 @@ def extract_images_and_preds(ckpt_path, max_images=30):
     count = 0
     images0, preds0 = [], []
     for batch in dataloader:
-        images, _ = batch
+        if stage3:
+            images, _, memory_long = batch
+            model._tmp["memory_long"] = [x.to(device) for x in memory_long]
+        else:
+            images, _ = batch
         n_images = len(images)
         if count + n_images > max_images:
             break
@@ -112,13 +119,16 @@ if __name__ == '__main__':
                         help="threshold of detection score")
     parser.add_argument("--max_images", type=int, default=30,
                         help="number of output images")
+    parser.add_argument("--stage3", default=False, action='store_true',
+                        help="predict by Context R-CNN")
     args = parser.parse_args()
     if not args.ckpt:
         raise ValueError("--ckpt option is not specified")
 
     seed_everything(0)
 
-    images, preds = extract_images_and_preds(args.ckpt, args.max_images)
+    images, preds = extract_images_and_preds(
+        args.ckpt, args.max_images, stage3=args.stage3)
     cct_handler = CCTAnnotationHandler()
     label_to_name = {k: v["name"]
                      for k, v in cct_handler.cat_trans_inv["val"].items()}
