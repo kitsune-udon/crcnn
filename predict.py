@@ -8,6 +8,7 @@ from pytorch_lightning.utilities.seed import seed_everything
 from torchvision.transforms import Compose, Normalize, ToPILImage
 from torchvision.transforms.transforms import Normalize
 
+import globals
 from cct_annotation_handler import CCTAnnotationHandler
 from cct_datamodule import CCTDataModule
 from cct_dataset import CCTDataset
@@ -73,9 +74,7 @@ def extract_images_and_preds(ckpt_path, max_images=30, stage3=False):
     if stage3:
         CCTDataset.stage3 = True
     dataloader = CCTDataModule().val_dataloader()
-    mean = dataloader.dataset.mean
-    std = dataloader.dataset.std
-    inv = InverseTransform(mean, std)
+    inv = InverseTransform(globals.image_mean, globals.image_std)
 
     device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
     model = ContextRCNN.load_from_checkpoint(ckpt_path)
@@ -127,11 +126,12 @@ if __name__ == '__main__':
 
     seed_everything(0)
 
-    images, preds = extract_images_and_preds(
-        args.ckpt, args.max_images, stage3=args.stage3)
     cct_handler = CCTAnnotationHandler()
     label_to_name = {k: v["name"]
                      for k, v in cct_handler.cat_trans_inv["val"].items()}
+
+    images, preds = extract_images_and_preds(
+        args.ckpt, args.max_images, stage3=args.stage3)
 
     rendered = []
     for i in range(len(images)):

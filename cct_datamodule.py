@@ -1,6 +1,7 @@
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader
 
+import globals
 from argparse_utils import from_argparse_args
 from cct_dataset import CCTDataset
 
@@ -10,11 +11,10 @@ def collate_fn(batch):
 
 
 class CCTDataModule(pl.LightningDataModule):
-    def __init__(self, dataset_root="./dataset/cct",
-                 train_batch_size=8, val_batch_size=8, num_workers=0):
+    def __init__(self, train_batch_size=8, val_batch_size=8, num_workers=0):
         super().__init__()
 
-        self.dataset_root = dataset_root
+        self.dataset_root = globals.dataset_root
         self.train_batch_size = train_batch_size
         self.val_batch_size = val_batch_size
         self.num_workers = num_workers
@@ -23,8 +23,7 @@ class CCTDataModule(pl.LightningDataModule):
         pass
 
     def train_dataloader(self, *args, **kwargs):
-        cct_train = CCTDataset(
-            dataset_root=self.dataset_root, split="train")
+        cct_train = CCTDataset(split="train")
 
         return DataLoader(cct_train,
                           shuffle=True,
@@ -33,8 +32,7 @@ class CCTDataModule(pl.LightningDataModule):
                           collate_fn=collate_fn)
 
     def val_dataloader(self, *args, **kwargs):
-        cct_val = CCTDataset(
-            dataset_root=self.dataset_root, split="val")
+        cct_val = CCTDataset(split="val")
 
         return DataLoader(cct_val,
                           shuffle=False,
@@ -50,8 +48,6 @@ class CCTDataModule(pl.LightningDataModule):
                             default=32, help="batch size for validation")
         parser.add_argument("--num_workers", type=int, default=4,
                             help="number of processes for dataloader")
-        parser.add_argument("--dataset_root", type=str,
-                            default="./dataset/cct", help="root path of dataset")
 
         return parser
 

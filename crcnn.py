@@ -8,12 +8,14 @@ import torch.nn.functional as F
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import StepLR
 
+import globals
 from argparse_utils import from_argparse_args
 from faster_rcnn import MyFasterRCNN
 from metrics import mean_average_precision
 
-# Current memory bank of my context r-cnn implementation is variable length.
-# So, Batch-Normalization is not for my context r-cnn implementation,
+
+# The length of the memory bank of my current implementation is variable.
+# So, Batch-Normalization does not suit this implementation,
 # it could be applied to a fix length memory bank version.
 class ContextProjection(nn.Module):
     def __init__(self, in_dim, out_dim, normalize_output=True, use_batchnorm=False):
@@ -35,8 +37,8 @@ class ContextProjection(nn.Module):
         else:
             return x
 
-# should use dropouts for generalization?
-class AttentionBlock(nn.Module):
+
+class AttentionBlock(nn.Module):  # should use dropouts for generalization?
     def __init__(self,
                  q_in_dim=256,
                  qk_out_dim=512,
@@ -99,7 +101,7 @@ class ContextRCNN(pl.LightningModule):
         self.save_hyperparameters()
 
         self.net = MyFasterRCNN.load_from_checkpoint(
-            "best_faster_rcnn.ckpt").net
+            globals.faster_rcnn_ckpt_path).net
         self.attention = AttentionBlock()
         self._tmp = {}
         prepare_faster_rcnn(self, self._tmp)
@@ -131,7 +133,7 @@ class ContextRCNN(pl.LightningModule):
 
     def configure_optimizers(self):
         params = [{'params': self.attention.parameters()},
-                  {'params': self.net.roi_heads.box_head.parameters()}] # need?
+                  {'params': self.net.roi_heads.box_head.parameters()}]  # need?
         optimizer = AdamW(params,
                           lr=self.hparams.learning_rate,
                           weight_decay=self.hparams.weight_decay)

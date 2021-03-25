@@ -1,5 +1,6 @@
 from pytorch_lightning.callbacks import ModelCheckpoint
 
+import globals
 from cct_datamodule import CCTDataModule
 from cct_dataset import CCTDataset
 from crcnn import ContextRCNN
@@ -9,7 +10,7 @@ if __name__ == '__main__':
     checkpoint_callback = ModelCheckpoint(
         "./checkpoints",
         monitor='val_map', save_top_k=1, mode="max")
-    dst = "./best_crcnn.ckpt"
+    dst = globals.crcnn_ckpt_path
     copy_best_checkpoint_callback = CopyBestCheckpoint(
         dst, checkpoint_callback)
     callbacks = [checkpoint_callback, copy_best_checkpoint_callback]

@@ -4,27 +4,28 @@ from torch.utils.data import Dataset
 from torchvision.transforms.transforms import (Compose, Normalize, Resize,
                                                ToTensor)
 
+import globals
 from cct_annotation_handler import CCTAnnotationHandler
 
 
 class CCTDataset(Dataset):
     stage3 = False
 
-    def __init__(self, dataset_root="./dataset/cct", split="train"):
+    def __init__(self, split="train"):
         super().__init__()
-        self.dataset_root = dataset_root
+        self.dataset_root = globals.dataset_root
         self.split = split
-        self.out_width = 640
-        self.out_height = 640
-        self.mean = (0.5, 0.5, 0.5)
-        self.std = (0.25, 0.25, 0.25)
+        self.out_width = globals.image_width
+        self.out_height = globals.image_height
+        self.mean = globals.image_mean
+        self.std = globals.image_std
         self.transform = Compose([
             Resize((self.out_height, self.out_width)),
             ToTensor(),
             Normalize(mean=self.mean,
                       std=self.std)
         ])
-        self.handler = CCTAnnotationHandler(root_dir=self.dataset_root)
+        self.handler = CCTAnnotationHandler()
         if CCTDataset.stage3:
             self.memory_long_table = torch.load(
                 "memory_long.pt", map_location=torch.device('cpu'))

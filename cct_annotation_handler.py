@@ -1,10 +1,11 @@
 import json
 import os
 from datetime import datetime
+import globals
 
 class CCTAnnotationHandler():
-    def __init__(self, root_dir="./dataset/cct", adjust_to_faster_rcnn=True):
-        self.root_dir = root_dir
+    def __init__(self, adjust_to_faster_rcnn=True):
+        self.root_dir = globals.dataset_root
         self.split_types = ["train", "val"]
         self.adjust_to_faster_rcnn = adjust_to_faster_rcnn
         self._read_annotation_files()
@@ -18,22 +19,58 @@ class CCTAnnotationHandler():
         self._annots = {}
         self._cats = {}
 
-        for split in self.split_types:
-            if split == "train":
-                fp = os.path.join(self.root_dir, "eccv_18_annotation_files",
-                                  "train_annotations.json")
-            elif split == "val":
-                fp = os.path.join(self.root_dir, "eccv_18_annotation_files",
-                                  "cis_val_annotations.json")
-            else:
-                raise ValueError("unknown split mode")
+        if globals.dataset_name == "cct_small":
+            for split in self.split_types:
+                if split == "train":
+                    fp = os.path.join(self.root_dir, "eccv_18_annotation_files",
+                                    "train_annotations.json")
+                elif split == "val":
+                    fp = os.path.join(self.root_dir, "eccv_18_annotation_files",
+                                    "cis_val_annotations.json")
+                else:
+                    raise ValueError("unknown split mode")
 
+                with open(fp, "r") as f:
+                    d = json.load(f)
+
+                self._images[split] = d["images"]
+                self._annots[split] = d["annotations"]
+                self._cats[split] = d["categories"]
+        elif globals.dataset_name == "cct_large":
+            def extract_images(all_images, locs):
+                def to_int(x):
+                    x["location"] = int(x["location"])
+                    return x
+                return [to_int(x) for x in all_images if int(x["location"]) in locs]
+            
+            def extract_annots(all_annots, images):
+                all_image_ids = [x["id"] for x in images]
+                return [annot for annot in all_annots if annot["image_id"] in all_image_ids]
+
+            fp = os.path.join(self.root_dir, "CaltechCameraTrapsSplits_v0.json")
+            with open(fp, "r") as f:
+                d = json.load(f)
+            
+            locs = {}
+            for split in self.split_types:
+                locs[split] = [int(x) for x in d["splits"][split]]
+
+            fp = os.path.join(self.root_dir, "caltech_images_20210113.json")
             with open(fp, "r") as f:
                 d = json.load(f)
 
-            self._images[split] = d["images"]
-            self._annots[split] = d["annotations"]
-            self._cats[split] = d["categories"]
+            for split in self.split_types:
+                self._images[split] = extract_images(d["images"], locs[split])
+
+            fp = os.path.join(self.root_dir, "caltech_bboxes_20200316.json")
+            with open(fp, "r") as f:
+                d = json.load(f)
+
+            for split in self.split_types:
+                self._cats[split] = d["categories"]
+                self._annots[split] = extract_annots(d["annotations"], self._images[split])
+        else:
+            raise ValueError(f"{globals.dataset_name} is unknown.")
 
     def _generate_categories_table(self):
         self.cat_trans = {}

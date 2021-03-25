@@ -7,18 +7,21 @@ from torch.optim.lr_scheduler import StepLR
 from torchvision.models.detection.faster_rcnn import (FastRCNNPredictor,
                                                       fasterrcnn_resnet50_fpn)
 
+import globals
 from argparse_utils import from_argparse_args
 from metrics import mean_average_precision
 
 
 def generate_my_model():
-    n_classes = 16
+    n_classes = globals.n_classes
+    wh = [globals.image_height, globals.image_width]
+    min_size, max_size = min(wh), max(wh)
 
     model = fasterrcnn_resnet50_fpn(
         pretrained=True,
-        min_size=640, max_size=640,
-        image_mean=(0.5, 0.5, 0.5),
-        image_std=(0.25, 0.25, 0.25),
+        min_size=min_size, max_size=max_size,
+        image_mean=globals.image_mean,
+        image_std=globals.image_std,
         trainable_backbone_layers=5
     )
     in_features = model.roi_heads.box_predictor.cls_score.in_features

@@ -10,6 +10,7 @@ from torchvision.transforms.transforms import (Compose, Normalize, Resize,
                                                ToTensor)
 from tqdm import tqdm
 
+import globals
 from cct_annotation_handler import CCTAnnotationHandler
 from cct_datamodule import collate_fn
 from faster_rcnn import MyFasterRCNN
@@ -21,10 +22,10 @@ class CCTDatasetByLocation(Dataset):
         self.handler = handler
         self.split = split
         self.location = location
-        self.out_width = 640
-        self.out_height = 640
-        self.mean = (0.5, 0.5, 0.5)
-        self.std = (0.25, 0.25, 0.25)
+        self.out_width = globals.image_width
+        self.out_height = globals.image_height
+        self.mean = globals.image_mean
+        self.std = globals.image_std
         self.transform = Compose([
             Resize((self.out_height, self.out_width)),
             ToTensor(),
@@ -99,25 +100,54 @@ def get_spatiotemporal(images, boxes, date_captured):
     return r
 
 
+def get_boxes(preds):
+    max_size = globals.memory_long_max_features_per_image # None is acceptable
+
+    all_boxes = []
+    for pred in preds:
+        idx = torch.argsort(pred["scores"], descending=True)
+        boxes = pred["boxes"][idx][:max_size]
+        all_boxes.append(boxes)
+
+    return all_boxes, [len(x) for x in all_boxes]
+
+def get_date(n_images, date_captured, boxes_per_image):
+    date = [
+        torch.tensor([date_captured[j].timestamp()]
+                        * boxes_per_image[j], dtype=torch.float64)
+        for j in range(n_images)
+    ]
+
+    return date
+
+def concat(feat, spatiotemporal):
+    x = []
+    for f, st in zip(feat, spatiotemporal):
+        x.append(torch.hstack([f, st]))
+    
+    return x
+
 if __name__ == '__main__':
-    ckpt_path = "best_faster_rcnn.ckpt"
+    ckpt_path = globals.faster_rcnn_ckpt_path
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     module = MyFasterRCNN.load_from_checkpoint(ckpt_path).to(device).eval()
     tmp = {}
     prepare_faster_rcnn(module, tmp)
 
-    handler = CCTAnnotationHandler(root_dir="./dataset/cct")
+    handler = CCTAnnotationHandler(globals.dataset_root)
     split_types = ["train", "val"]
     batch_size = 32
     num_workers = 4
     per_box_features = {}
+    date_captured_archive = {}
 
     for split in split_types:
         per_box_features[split] = {}
+        date_captured_archive[split] = {}
 
         for loc in handler._locs[split]:
             pbf = []  # per-box features
-            per_box_features[loc] = pbf
+            date_ex = []
 
             dataset = CCTDatasetByLocation(handler, "train", loc)
             dataloader = DataLoader(
@@ -125,27 +155,51 @@ if __name__ == '__main__':
                 shuffle=False, num_workers=num_workers,
                 collate_fn=collate_fn)
 
-            for i, batch in enumerate(tqdm(dataloader, desc=f"{split}/loc[{loc}]")):
+            for batch in tqdm(dataloader, desc=f"{split}/loc[{loc}]"):
                 images, date_captured = batch
                 images = [x.to(device) for x in images]
 
                 with torch.no_grad():
                     preds = module.net(images)
-                    boxes = [x["boxes"] for x in preds]
-                    boxes_per_image = [len(x["boxes"]) for x in preds]
+
+                    boxes, boxes_per_image = get_boxes(preds)
+                    date = get_date(len(images), date_captured, boxes_per_image)
+
                     feat = module.net.roi_heads.box_roi_pool(
                         tmp["features"], boxes, tmp["image_sizes"])
-                    feat = F.max_pool2d(feat, kernel_size=7).squeeze(-1).squeeze(-1)
+
+                    if not len(feat) > 0:
+                        continue
+
+                    feat = F.max_pool2d(
+                        feat, kernel_size=7).squeeze(-1).squeeze(-1)
                     feat = feat.split(boxes_per_image)
+
                     spatiotemporal = get_spatiotemporal(
                         images, boxes, date_captured)
-                    feat_with_st = []
-                    for f, st in zip(feat, spatiotemporal):
-                        feat_with_st.append(torch.hstack([f, st]))
+
+                    feat_with_st = concat(feat, spatiotemporal)
+
+                    assert len(feat_with_st) == len(date)
+
                     pbf.append(feat_with_st)
+                    date_ex.append(date)
 
             pbf = list(itertools.chain(*pbf))
-            pbf = torch.cat(pbf)
-            per_box_features[split][loc] = pbf.cpu()
+            date_ex = list(itertools.chain(*date_ex))
 
-    torch.save(per_box_features, "memory_long.pt")
+            if len(pbf) > 0:
+                pbf = torch.cat(pbf)
+            else:
+                pbf = torch.zeros()  # TODO: set appropriate value
+
+            if len(date_ex) > 0:
+                date_ex = torch.cat(date_ex)
+            else:
+                date_ex = torch.zeros()  # TODO: set appropriate value
+
+            per_box_features[split][loc] = pbf.cpu()
+            date_captured_archive[split][loc] = date_ex
+
+    torch.save(per_box_features, globals.memory_long_path)
+    torch.save(date_captured_archive, globals.memory_long_date_path)
