@@ -1,8 +1,6 @@
-from collections import Counter
-
 import torch
 from torchvision.ops import box_iou
-import numpy as np
+
 
 def evaluate_iou(target, pred):
     if pred["boxes"].shape[0] == 0:
@@ -36,12 +34,8 @@ def _mean_average_precision_sub(
         if len(desc_indices) == 0:
             continue
 
-        targets_per_images = Counter(
-            [idx.item() for idx in target_image_indices[target_labels == c]])
-
-        targets_assigned = {
-            image_idx: torch.zeros(count, dtype=torch.bool, device=device) for image_idx, count in targets_per_images.items()
-        }
+        tidx = torch.unique(target_image_indices[target_labels == c])
+        targets_assigned = {k.item(): {} for k in tidx}
 
         tps = torch.zeros(len(desc_indices), device=device)
         fps = torch.zeros(len(desc_indices), device=device)
@@ -54,7 +48,7 @@ def _mean_average_precision_sub(
                 pred_bboxes[pred_idx], dim=0), gt_bboxes)
             best_iou, best_target_idx = ious.squeeze(
                 0).max(0) if len(gt_bboxes) > 0 else (0, -1)
-            if best_iou > iou_threshold and not targets_assigned[image_idx][best_target_idx]:
+            if best_iou > iou_threshold and not targets_assigned[image_idx].get(best_target_idx, False):
                 targets_assigned[image_idx][best_target_idx] = True
                 tps[i] = 1
             else:
@@ -64,8 +58,10 @@ def _mean_average_precision_sub(
         precision = tps_cum / (tps_cum + fps_cum)
         num_targets = len(target_labels[target_labels == c])
         recall = tps_cum / num_targets if num_targets else tps_cum
-        precision = torch.cat([reversed(precision), torch.tensor([1.], device=device)])
-        recall = torch.cat([reversed(recall), torch.tensor([0.], device=device)])
+        precision = torch.cat(
+            [reversed(precision), torch.tensor([1.], device=device)])
+        recall = torch.cat(
+            [reversed(recall), torch.tensor([0.], device=device)])
         average_precision = - \
             torch.sum((recall[1:] - recall[:-1]) * precision[:-1])
         average_precisions[class_idx] = average_precision
@@ -107,6 +103,7 @@ def mean_average_precision(preds, targets, iou_threshold, device):
 def _test_mAP(device):
     def sample3():
         def insert_dummy(preds):
+            import numpy as np
             n_dummy = 1
             dummy_scores = (0.1 * np.random.rand(n_dummy)).tolist()
             dummy_labels = [99] * n_dummy
@@ -143,7 +140,7 @@ def _test_mAP(device):
         return args, expected_value
 
     def proc(args, expected):
-        mAP = mean_average_precision(*args) # mAP is torch.tensor()
+        mAP = mean_average_precision(*args)  # mAP is torch.tensor()
         print(f"on {mAP.device} mAP:{mAP} expected mAP:{expected}")
 
     proc(*sample3())

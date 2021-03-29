@@ -46,7 +46,7 @@ class CCTDataModule(pl.LightningDataModule):
                             default=32, help="batch size for training")
         parser.add_argument("--val_batch_size", type=int,
                             default=32, help="batch size for validation")
-        parser.add_argument("--num_workers", type=int, default=4,
+        parser.add_argument("--num_workers", type=int, default=8,
                             help="number of processes for dataloader")
 
         return parser

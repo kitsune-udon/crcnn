@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import torch
 from PIL import Image
 from torch.utils.data import Dataset
@@ -27,8 +29,10 @@ class CCTDataset(Dataset):
         ])
         self.handler = CCTAnnotationHandler()
         if CCTDataset.stage3:
-            self.memory_long_table = torch.load(
+            self._memory_long_table = torch.load(
                 "memory_long.pt", map_location=torch.device('cpu'))
+            self._memory_long_date_table = torch.load(
+                "memory_long_date.pt", map_location=torch.device('cpu'))
 
     def __len__(self):
         return len(self.handler.annotated_images[self.split])
@@ -40,9 +44,7 @@ class CCTDataset(Dataset):
         target = self._get_target(annot_list, image_info)
 
         if CCTDataset.stage3:
-            loc = image_info["location"]
-            memory_long = self.memory_long_table[self.split][loc]
-            return self.transform(img), target, memory_long
+            return self.transform(img), target, self._get_memory_long(image_info)
         else:
             return self.transform(img), target
 
@@ -64,9 +66,29 @@ class CCTDataset(Dataset):
 
         return {"boxes": torch.tensor(boxes, dtype=torch.float32), "labels": torch.tensor(labels, dtype=torch.int64)}
 
+    def _get_memory_long(self, image_info):
+        def clip_memory_long(memory_long, memory_long_date, date_captured):
+            begin, end = [date_captured +
+                          x for x in globals.memory_long_interval]
+            idx = (begin < memory_long_date) * (memory_long_date < end)
+            return memory_long[idx]
+
+        loc = image_info["location"]
+        date_captured = datetime.fromisoformat(
+            image_info["date_captured"]).timestamp()
+        memory_long = self._memory_long_table[self.split][loc]
+        memory_long_date = self._memory_long_date_table[self.split][loc]
+        memory_long = clip_memory_long(
+            memory_long, memory_long_date, date_captured)
+
+        return memory_long
+
 
 if __name__ == '__main__':
     CCTDataset.stage3 = True
     cct = CCTDataset()
-    print(cct[0][2])
-    print(cct[0][2].size())
+    total_size = len(cct)
+    print(f"total: {total_size}")
+    lens = [cct[i][2].size()[0] for i in range(100)]
+    max_len = max(lens)
+    print(f"max: {max_len}")

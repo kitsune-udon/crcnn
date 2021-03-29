@@ -82,6 +82,6 @@ class MyFasterRCNN(pl.LightningModule):
     @staticmethod
     def add_argparse_args(parser):
         parser.add_argument('--learning_rate', type=float, default=0.001)
-        parser.add_argument('--weight_decay', type=float, default=0.01)
+        parser.add_argument('--weight_decay', type=float, default=0.05)
 
         return parser

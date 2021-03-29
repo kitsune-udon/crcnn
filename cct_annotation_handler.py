@@ -1,7 +1,9 @@
 import json
 import os
 from datetime import datetime
+
 import globals
+
 
 class CCTAnnotationHandler():
     def __init__(self, adjust_to_faster_rcnn=True):
@@ -23,10 +25,10 @@ class CCTAnnotationHandler():
             for split in self.split_types:
                 if split == "train":
                     fp = os.path.join(self.root_dir, "eccv_18_annotation_files",
-                                    "train_annotations.json")
+                                      "train_annotations.json")
                 elif split == "val":
                     fp = os.path.join(self.root_dir, "eccv_18_annotation_files",
-                                    "cis_val_annotations.json")
+                                      "cis_val_annotations.json")
                 else:
                     raise ValueError("unknown split mode")
 
@@ -41,16 +43,18 @@ class CCTAnnotationHandler():
                 def to_int(x):
                     x["location"] = int(x["location"])
                     return x
-                return [to_int(x) for x in all_images if int(x["location"]) in locs]
-            
+                return [to_int(x) for x in all_images if int(x["location"]) in locs and x["date_captured"] != "11 11"]
+
             def extract_annots(all_annots, images):
                 all_image_ids = [x["id"] for x in images]
-                return [annot for annot in all_annots if annot["image_id"] in all_image_ids]
+                flags = {k: True for k in all_image_ids}
+                return [annot for annot in all_annots if flags.get(annot["image_id"], False)]
 
-            fp = os.path.join(self.root_dir, "CaltechCameraTrapsSplits_v0.json")
+            fp = os.path.join(
+                self.root_dir, "CaltechCameraTrapsSplits_v0.json")
             with open(fp, "r") as f:
                 d = json.load(f)
-            
+
             locs = {}
             for split in self.split_types:
                 locs[split] = [int(x) for x in d["splits"][split]]
@@ -68,7 +72,8 @@ class CCTAnnotationHandler():
 
             for split in self.split_types:
                 self._cats[split] = d["categories"]
-                self._annots[split] = extract_annots(d["annotations"], self._images[split])
+                self._annots[split] = extract_annots(
+                    d["annotations"], self._images[split])
         else:
             raise ValueError(f"{globals.dataset_name} is unknown.")
 
@@ -121,7 +126,7 @@ class CCTAnnotationHandler():
         for split in self.split_types:
             locs = sorted(set([x["location"] for x in self._images[split]]))
             self._locs[split] = locs
-    
+
     def _generate_images_by_location(self):
         self._images_by_location = {}
 
@@ -133,13 +138,20 @@ class CCTAnnotationHandler():
                 loc = img["location"]
                 d.setdefault(loc, [])
                 d[loc].append(img)
-            
+
             for loc in self._locs[split]:
-                d[loc] = sorted(d[loc], key=lambda x: datetime.fromisoformat(x["date_captured"]))
+                d[loc] = sorted(
+                    d[loc], key=lambda x: datetime.fromisoformat(x["date_captured"]))
 
     def get_image_path(self, filename):
-        image_path = os.path.join(
-            self.root_dir, "eccv_18_all_images_sm", filename)
+        if globals.dataset_name == "cct_small":
+            image_path = os.path.join(
+                self.root_dir, "eccv_18_all_images_sm", filename)
+        elif globals.dataset_name == "cct_large":
+            image_path = os.path.join(
+                self.root_dir, "cct_images", filename)
+        else:
+            raise ValueError(f"{globals.dataset_name} is unknown.")
 
         return image_path
 
@@ -147,4 +159,5 @@ class CCTAnnotationHandler():
 if __name__ == '__main__':
     h = CCTAnnotationHandler()
     loc = h._locs["train"][0]
-    print(loc)
+    print(h._locs)
+    print(len(h._images_by_location["val"][0]))

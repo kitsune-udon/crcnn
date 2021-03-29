@@ -134,10 +134,10 @@ if __name__ == '__main__':
     tmp = {}
     prepare_faster_rcnn(module, tmp)
 
-    handler = CCTAnnotationHandler(globals.dataset_root)
+    handler = CCTAnnotationHandler()
     split_types = ["train", "val"]
-    batch_size = 32
-    num_workers = 4
+    batch_size = globals.training_stage2_batch_size
+    num_workers = globals.training_stage2_num_workers
     per_box_features = {}
     date_captured_archive = {}
 
@@ -149,7 +149,7 @@ if __name__ == '__main__':
             pbf = []  # per-box features
             date_ex = []
 
-            dataset = CCTDatasetByLocation(handler, "train", loc)
+            dataset = CCTDatasetByLocation(handler, split, loc)
             dataloader = DataLoader(
                 dataset, batch_size=batch_size,
                 shuffle=False, num_workers=num_workers,
@@ -171,7 +171,7 @@ if __name__ == '__main__':
                     if not len(feat) > 0:
                         continue
 
-                    feat = F.max_pool2d(
+                    feat = F.avg_pool2d(
                         feat, kernel_size=7).squeeze(-1).squeeze(-1)
                     feat = feat.split(boxes_per_image)
 
@@ -191,12 +191,12 @@ if __name__ == '__main__':
             if len(pbf) > 0:
                 pbf = torch.cat(pbf)
             else:
-                pbf = torch.zeros()  # TODO: set appropriate value
+                pbf = torch.zeros(0, globals.feature_size)
 
             if len(date_ex) > 0:
                 date_ex = torch.cat(date_ex)
             else:
-                date_ex = torch.zeros()  # TODO: set appropriate value
+                date_ex = torch.zeros(0, 1, dtype=torch.float64)
 
             per_box_features[split][loc] = pbf.cpu()
             date_captured_archive[split][loc] = date_ex

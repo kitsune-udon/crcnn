@@ -18,20 +18,15 @@ from metrics import mean_average_precision
 # So, Batch-Normalization does not suit this implementation,
 # it could be applied to a fix length memory bank version.
 class ContextProjection(nn.Module):
-    def __init__(self, in_dim, out_dim, normalize_output=True, use_batchnorm=False):
+    def __init__(self, in_dim, out_dim, normalize_output=True, use_batchnorm=False, use_relu=True):
         super().__init__()
         self.linear = nn.Linear(in_dim, out_dim)
-        if use_batchnorm:
-            self.bn = nn.BatchNorm1d(out_dim)
-        self.relu = nn.ReLU(inplace=True)
+        self.bn = nn.BatchNorm1d(out_dim) if use_batchnorm else nn.Identity()
+        self.relu = nn.ReLU(inplace=True) if use_relu else nn.Identity()
         self.normalize_output = normalize_output
-        self.use_batchnorm = use_batchnorm
 
     def forward(self, x):
-        if self.use_batchnorm:
-            x = self.relu(self.bn(self.linear(x)))
-        else:
-            x = self.relu(self.linear(x))
+        x = self.relu(self.bn(self.linear(x)))
         if self.normalize_output:
             return F.normalize(x, p=2, dim=-1)
         else:
@@ -44,7 +39,7 @@ class AttentionBlock(nn.Module):  # should use dropouts for generalization?
                  qk_out_dim=512,
                  v_out_dim=512,
                  spatiotemporal_size=9,
-                 temparature=0.1):
+                 temparature=0.01):
         super().__init__()
         self.temparature = temparature
         self.q_in_dim = q_in_dim
@@ -52,7 +47,7 @@ class AttentionBlock(nn.Module):  # should use dropouts for generalization?
         self.q = ContextProjection(q_in_dim, qk_out_dim)
         self.k = ContextProjection(kv_in_dim, qk_out_dim)
         self.v = ContextProjection(kv_in_dim, v_out_dim)
-        self.f = ContextProjection(v_out_dim, q_in_dim, normalize_output=False)
+        self.f = ContextProjection(v_out_dim, q_in_dim, normalize_output=False, use_relu=False)
 
     def forward(self, A, B):
         scaler = 1. / (self.temparature * math.sqrt(self.q_in_dim))
@@ -73,11 +68,12 @@ def prepare_faster_rcnn(crcnn_module, tmp):
     def hook2(module, input):
         boxes_per_images = [x.shape[0] for x in tmp["proposals"]]
         features = input[0]
+        assert features.shape[1] == globals.feature_size
         features = features.split(boxes_per_images)
 
         r = []
         for feature, memory_long in zip(features, tmp["memory_long"]):
-            feature_pooled = F.max_pool2d(
+            feature_pooled = F.avg_pool2d(
                 feature, kernel_size=7).squeeze(-1).squeeze(-1)
             context = crcnn_module.attention(feature_pooled, memory_long)
             feature_with_context = feature + \
@@ -132,8 +128,11 @@ class ContextRCNN(pl.LightningModule):
         self.log("val_map", mAP, on_epoch=True, logger=True)
 
     def configure_optimizers(self):
-        params = [{'params': self.attention.parameters()},
-                  {'params': self.net.roi_heads.box_head.parameters()}]  # need?
+        params = [{'params': self.attention.parameters()}]
+
+        if globals.update_box_head_params:
+            params.append({'params': self.net.roi_heads.box_head.parameters()})
+
         optimizer = AdamW(params,
                           lr=self.hparams.learning_rate,
                           weight_decay=self.hparams.weight_decay)
@@ -149,6 +148,6 @@ class ContextRCNN(pl.LightningModule):
     @staticmethod
     def add_argparse_args(parser):
         parser.add_argument('--learning_rate', type=float, default=0.001)
-        parser.add_argument('--weight_decay', type=float, default=0.01)
+        parser.add_argument('--weight_decay', type=float, default=0.05)
 
         return parser

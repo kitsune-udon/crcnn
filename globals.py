@@ -23,4 +23,12 @@ faster_rcnn_ckpt_path = "best_faster_rcnn.ckpt"
 crcnn_ckpt_path = "best_crcnn.ckpt"
 memory_long_path = "memory_long.pt"
 memory_long_date_path = "memory_long_date.pt"
-memory_long_max_features_per_image = 1
+memory_long_max_features_per_image = None
+memory_long_interval = (-30 * 24 * 60 * 60, 30 * 24 * 60 * 60)
+
+update_box_head_params = False
+
+training_stage2_batch_size = 64
+training_stage2_num_workers = 8
+
+feature_size = 256
