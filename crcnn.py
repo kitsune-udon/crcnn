@@ -14,9 +14,6 @@ from faster_rcnn import MyFasterRCNN
 from metrics import mean_average_precision
 
 
-# The length of the memory bank of my current implementation is variable.
-# So, Batch-Normalization does not suit this implementation,
-# it could be applied to a fix length memory bank version.
 class ContextProjection(nn.Module):
     def __init__(self, in_dim, out_dim, normalize_output=True, use_batchnorm=False, use_relu=True):
         super().__init__()
@@ -33,6 +30,11 @@ class ContextProjection(nn.Module):
             return x
 
 
+def pack_variable_tensors(tensors):
+    lens = [x.shape[0] for x in tensors]
+    return torch.cat(tensors), lens
+
+
 class AttentionBlock(nn.Module):  # should use dropouts for generalization?
     def __init__(self,
                  q_in_dim=256,
@@ -47,16 +49,23 @@ class AttentionBlock(nn.Module):  # should use dropouts for generalization?
         self.q = ContextProjection(q_in_dim, qk_out_dim)
         self.k = ContextProjection(kv_in_dim, qk_out_dim)
         self.v = ContextProjection(kv_in_dim, v_out_dim)
-        self.f = ContextProjection(v_out_dim, q_in_dim, normalize_output=False, use_relu=False)
+        self.f = ContextProjection(v_out_dim, q_in_dim, normalize_output=False)
 
     def forward(self, A, B):
+        # A: List[Tensor(n_features, feature_size)]
+        # B: List[Tensor(n_features_of_memory, feature_size_of_memory)]
+        A0, A_lens = pack_variable_tensors(A)
+        B0, B_lens = pack_variable_tensors(B)
         scaler = 1. / (self.temparature * math.sqrt(self.q_in_dim))
-        q, k, v = self.q(A), self.k(B), self.v(B)
-        qk = torch.einsum("ij,kj->ik", q, k)
-        w = F.softmax(qk * scaler, dim=-1)
-        f = self.f(w.matmul(v))
+        q, k, v = self.q(A0), self.k(B0), self.v(B0)
+        q, k, v = q.split(A_lens), k.split(B_lens), v.split(B_lens)
+        qk = [torch.einsum("ij,kj->ik", q_, k_) for q_, k_ in zip(q, k)]
+        w = [F.softmax(qk_ * scaler, dim=-1) for qk_ in qk]
+        wv = [torch.einsum("ik,kj->ij", w_, v_) for w_, v_ in zip(w, v)]
+        wv_packed, wv_lens = pack_variable_tensors(wv)
+        f = self.f(wv_packed).split(wv_lens)
 
-        return f
+        return f  # List[Tensor(n_features, feature_size)]
 
 
 def prepare_faster_rcnn(crcnn_module, tmp):
@@ -66,21 +75,20 @@ def prepare_faster_rcnn(crcnn_module, tmp):
         return input
 
     def hook2(module, input):
+        def pool(x):
+            return F.avg_pool2d(x, kernel_size=7).squeeze(-1).squeeze(-1)
+
+        def features_with_context(features, contexts):
+            return [f + c.unsqueeze(-1).unsqueeze(-1) for f, c in zip(features, contexts)]
+
         boxes_per_images = [x.shape[0] for x in tmp["proposals"]]
         features = input[0]
         assert features.shape[1] == globals.feature_size
         features = features.split(boxes_per_images)
+        features_pooled = [pool(f) for f in features]
+        contexts = crcnn_module.attention(features_pooled, tmp["memory_long"])
 
-        r = []
-        for feature, memory_long in zip(features, tmp["memory_long"]):
-            feature_pooled = F.avg_pool2d(
-                feature, kernel_size=7).squeeze(-1).squeeze(-1)
-            context = crcnn_module.attention(feature_pooled, memory_long)
-            feature_with_context = feature + \
-                context.unsqueeze(-1).unsqueeze(-1)
-            r.append(feature_with_context)
-
-        return torch.cat(r)
+        return torch.cat(features_with_context(features, contexts))
 
     crcnn_module.net.roi_heads.box_roi_pool.register_forward_pre_hook(hook)
     crcnn_module.net.roi_heads.box_head.register_forward_pre_hook(hook2)
@@ -151,3 +159,11 @@ class ContextRCNN(pl.LightningModule):
         parser.add_argument('--weight_decay', type=float, default=0.05)
 
         return parser
+
+
+if __name__ == '__main__':
+    x = [torch.rand(3, 5), torch.rand(2, 5), torch.rand(1, 5)]
+    m = [torch.rand(1, 14), torch.rand(2, 14), torch.rand(3, 14)]
+    block = AttentionBlock(q_in_dim=5, qk_out_dim=7, v_out_dim=7)
+    c = block(x, m)
+    print(c)

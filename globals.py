@@ -32,3 +32,5 @@ training_stage2_batch_size = 64
 training_stage2_num_workers = 8
 
 feature_size = 256
+
+large_negative = -100000
