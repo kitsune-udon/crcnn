@@ -4,6 +4,8 @@ from torchvision.models.detection.backbone_utils import BackboneWithFPN
 from torchvision.ops import misc as misc_nn_ops
 from torchvision.ops.feature_pyramid_network import LastLevelMaxPool
 
+import globals
+
 
 def resnet_fpn_backbone(
     backbone_name,
@@ -71,5 +73,5 @@ def resnet_fpn_backbone(
     in_channels_stage2 = backbone.inplanes // 8
     in_channels_list = [in_channels_stage2 *
                         2 ** (i - 1) for i in returned_layers]
-    out_channels = 2048
+    out_channels = globals.feature_size
     return BackboneWithFPN(backbone, return_layers, in_channels_list, out_channels, extra_blocks=extra_blocks)

@@ -32,5 +32,5 @@ update_box_head_params = False
 training_stage2_batch_size = 64
 training_stage2_num_workers = 8
 
-feature_size = 2048
+feature_size = 512
 horizontal_flip_rate = 0.5
