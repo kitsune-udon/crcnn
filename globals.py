@@ -14,8 +14,9 @@ elif dataset_name == "cct_large":
 else:
     raise ValueError(f"{dataset_name} is unknown.")
 
-image_width = 320
-image_height = 320
+faster_rcnn_backbone = "resnet101"
+image_width = 640
+image_height = 640
 image_mean = (0.5, 0.5, 0.5)
 image_std = (0.25, 0.25, 0.25)
 
@@ -31,6 +32,5 @@ update_box_head_params = False
 training_stage2_batch_size = 64
 training_stage2_num_workers = 8
 
-feature_size = 256
-
-large_negative = -100000
+feature_size = 2048
+horizontal_flip_rate = 0.5

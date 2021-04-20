@@ -4,31 +4,40 @@ import pytorch_lightning as pl
 import torch
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import StepLR
-from torchvision.models.detection.faster_rcnn import (FastRCNNPredictor,
-                                                      fasterrcnn_resnet50_fpn)
+from torchvision.models.detection.faster_rcnn import (FasterRCNN,
+                                                      FastRCNNPredictor)
 
 import globals
 from argparse_utils import from_argparse_args
+from fpn import resnet_fpn_backbone
 from metrics import mean_average_precision
 
 
-def generate_my_model():
+def generate_resnet_model(model_id):
+    backbone = resnet_fpn_backbone(model_id, True, trainable_layers=5)
     n_classes = globals.n_classes
     wh = [globals.image_height, globals.image_width]
     min_size, max_size = min(wh), max(wh)
-
-    model = fasterrcnn_resnet50_fpn(
-        pretrained=True,
+    model = FasterRCNN(
+        backbone,
+        n_classes,
         min_size=min_size, max_size=max_size,
         image_mean=globals.image_mean,
-        image_std=globals.image_std,
-        trainable_backbone_layers=5
-    )
+        image_std=globals.image_std)
     in_features = model.roi_heads.box_predictor.cls_score.in_features
     model.roi_heads.box_predictor = FastRCNNPredictor(
         in_features, n_classes + 1)
 
     return model
+
+
+def generate_my_model():
+    if globals.faster_rcnn_backbone == "resnet101":
+        return generate_resnet_model("resnet101")
+    elif globals.faster_rcnn_backbone == "resnet50":
+        return generate_resnet_model("resnet50")
+    else:
+        raise ValueError(f"{globals.faster_rcnn_backbone} is not supported.")
 
 
 class MyFasterRCNN(pl.LightningModule):

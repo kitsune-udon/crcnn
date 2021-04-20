@@ -15,7 +15,7 @@ from metrics import mean_average_precision
 
 
 class ContextProjection(nn.Module):
-    def __init__(self, in_dim, out_dim, normalize_output=True, use_batchnorm=False, use_relu=True):
+    def __init__(self, in_dim, out_dim, normalize_output=True, use_batchnorm=True, use_relu=True):
         super().__init__()
         self.linear = nn.Linear(in_dim, out_dim)
         self.bn = nn.BatchNorm1d(out_dim) if use_batchnorm else nn.Identity()

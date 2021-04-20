@@ -1,5 +1,6 @@
 from datetime import datetime
 
+import numpy as np
 import torch
 from PIL import Image
 from torch.utils.data import Dataset
@@ -12,6 +13,7 @@ from cct_annotation_handler import CCTAnnotationHandler
 
 class CCTDataset(Dataset):
     stage3 = False
+    use_horizontal_flip = True
 
     def __init__(self, split="train"):
         super().__init__()
@@ -38,15 +40,44 @@ class CCTDataset(Dataset):
         return len(self.handler.annotated_images[self.split])
 
     def __getitem__(self, index):
+        def flip_target(target):
+            src = target["boxes"]
+            dst = torch.clone(src)
+            w = globals.image_width
+            t = src[:, 2] - src[:, 0]
+            dst[:, 0] = w - src[:, 0] - t
+            dst[:, 2] = w - src[:, 2] + t
+            return {"boxes": dst, "labels": target["labels"]}
+
+        def flip_image(img):
+            return torch.flip(img, [2])
+
+        def flip_memory_long(memory_long):
+            x = torch.clone(memory_long)
+            x[:, 5] = 1 - x[:, 5]  # 5 is index of x-center value
+            return x
+
         image_info, annot_list = self.handler.annotated_images[self.split][index]
         image_path = self.handler.get_image_path(image_info["file_name"])
         img = Image.open(image_path).convert("RGB")
         target = self._get_target(annot_list, image_info)
+        img = self.transform(img)
+
+        if CCTDataset.use_horizontal_flip and self.split == "train":
+            do_flip = np.random.rand() < globals.horizontal_flip_rate
+        else:
+            do_flip = False
+
+        if do_flip:
+            img, target = flip_image(img), flip_target(target)
 
         if CCTDataset.stage3:
-            return self.transform(img), target, self._get_memory_long(image_info)
+            memory_long = self._get_memory_long(image_info)
+            if do_flip:
+                memory_long = flip_memory_long(memory_long)
+            return img, target, memory_long
         else:
-            return self.transform(img), target
+            return img, target
 
     def _get_target(self, annot_list, image_info):
         w = image_info["width"]
