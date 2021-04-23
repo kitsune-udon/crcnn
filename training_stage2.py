@@ -101,31 +101,37 @@ def get_spatiotemporal(images, boxes, date_captured):
 
 
 def get_boxes(preds):
-    max_size = globals.memory_long_max_features_per_image # None is acceptable
+    max_size = globals.memory_long_max_features_per_image  # None is acceptable
 
     all_boxes = []
     for pred in preds:
-        idx = torch.argsort(pred["scores"], descending=True)
-        boxes = pred["boxes"][idx][:max_size]
+        idx = pred["scores"] > globals.memory_long_score_threshold
+        scores = pred["scores"][idx]
+        boxes = pred["boxes"][idx]
+        idx = torch.argsort(scores, descending=True)
+        boxes = boxes[idx][:max_size]
         all_boxes.append(boxes)
 
     return all_boxes, [len(x) for x in all_boxes]
 
+
 def get_date(n_images, date_captured, boxes_per_image):
     date = [
         torch.tensor([date_captured[j].timestamp()]
-                        * boxes_per_image[j], dtype=torch.float64)
+                     * boxes_per_image[j], dtype=torch.float64)
         for j in range(n_images)
     ]
 
     return date
 
+
 def concat(feat, spatiotemporal):
     x = []
     for f, st in zip(feat, spatiotemporal):
         x.append(torch.hstack([f, st]))
-    
+
     return x
+
 
 if __name__ == '__main__':
     ckpt_path = globals.faster_rcnn_ckpt_path
@@ -163,16 +169,19 @@ if __name__ == '__main__':
                     preds = module.net(images)
 
                     boxes, boxes_per_image = get_boxes(preds)
-                    date = get_date(len(images), date_captured, boxes_per_image)
+                    date = get_date(len(images), date_captured,
+                                    boxes_per_image)
 
                     feat = module.net.roi_heads.box_roi_pool(
                         tmp["features"], boxes, tmp["image_sizes"])
 
+                    feat = module.net.roi_heads.box_head(feat)
+
                     if not len(feat) > 0:
                         continue
 
-                    feat = F.avg_pool2d(
-                        feat, kernel_size=7).squeeze(-1).squeeze(-1)
+                    # feat = F.avg_pool2d(
+                    #    feat, kernel_size=7).squeeze(-1).squeeze(-1)
                     feat = feat.split(boxes_per_image)
 
                     spatiotemporal = get_spatiotemporal(
@@ -188,6 +197,7 @@ if __name__ == '__main__':
             pbf = list(itertools.chain(*pbf))
             date_ex = list(itertools.chain(*date_ex))
 
+            print(f"memory_long size:{len(pbf)}")
             if len(pbf) > 0:
                 pbf = torch.cat(pbf)
             else:

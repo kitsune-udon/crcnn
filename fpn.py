@@ -73,5 +73,5 @@ def resnet_fpn_backbone(
     in_channels_stage2 = backbone.inplanes // 8
     in_channels_list = [in_channels_stage2 *
                         2 ** (i - 1) for i in returned_layers]
-    out_channels = globals.feature_size
+    out_channels = 256
     return BackboneWithFPN(backbone, return_layers, in_channels_list, out_channels, extra_blocks=extra_blocks)

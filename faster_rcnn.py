@@ -45,6 +45,7 @@ class MyFasterRCNN(pl.LightningModule):
                  *args,
                  learning_rate=None,
                  weight_decay=None,
+                 max_epochs=None,
                  **kwargs
                  ):
         super().__init__(*args, **kwargs)
@@ -71,7 +72,8 @@ class MyFasterRCNN(pl.LightningModule):
     def validation_epoch_end(self, outputs):
         preds = itertools.chain(*[o["preds"] for o in outputs])
         targets = itertools.chain(*[o["targets"] for o in outputs])
-        mAP = mean_average_precision(preds, targets, 0.5, self.device)
+        mAP = mean_average_precision(
+            preds, targets, 0.5, self.device, score_threshold=globals.mAP_score_threshold)
 
         self.log("val_map", mAP, on_epoch=True, logger=True)
 
@@ -80,7 +82,8 @@ class MyFasterRCNN(pl.LightningModule):
                           lr=self.hparams.learning_rate,
                           weight_decay=self.hparams.weight_decay)
 
-        scheduler = StepLR(optimizer, 1, gamma=0.7)
+        gamma = 10 ** -(2 / self.hparams.max_epochs)
+        scheduler = StepLR(optimizer, 1, gamma=gamma)
 
         return [optimizer], [scheduler]
 
@@ -91,6 +94,6 @@ class MyFasterRCNN(pl.LightningModule):
     @staticmethod
     def add_argparse_args(parser):
         parser.add_argument('--learning_rate', type=float, default=0.001)
-        parser.add_argument('--weight_decay', type=float, default=0.05)
+        parser.add_argument('--weight_decay', type=float, default=0.01)
 
         return parser

@@ -71,12 +71,23 @@ def _mean_average_precision_sub(
     return mean_average_precision
 
 
-def mean_average_precision(preds, targets, iou_threshold, device):
+def mean_average_precision(preds, targets, iou_threshold, device, score_threshold=0.):
     def op(x):
         return torch.cat(x).to(device)
+    
+    def filter_by_score(pred, threshold):
+        idx = pred["scores"] > threshold
+        r = {}
+        r["scores"] = pred["scores"][idx]
+        r["labels"] = pred["labels"][idx]
+        r["boxes"] = pred["boxes"][idx]
+
+        return r
+
 
     p_probs, p_labels, p_bboxes, p_image_indices = [], [], [], []
     for i, pred in enumerate(preds):
+        pred = filter_by_score(pred, score_threshold)
         p_probs.append(pred["scores"])
         p_labels.append(pred["labels"])
         p_bboxes.append(pred["boxes"])

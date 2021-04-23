@@ -1,5 +1,6 @@
 
 import argparse
+from faster_rcnn import MyFasterRCNN
 import itertools
 
 import torch
@@ -71,13 +72,15 @@ def generate_tiles(images, n_col=3):
 
 
 def extract_images_and_preds(ckpt_path, max_images=30, stage3=False):
+    module = MyFasterRCNN
     if stage3:
         CCTDataset.stage3 = True
+        module = ContextRCNN
     dataloader = CCTDataModule().val_dataloader()
     inv = InverseTransform(globals.image_mean, globals.image_std)
 
     device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
-    model = ContextRCNN.load_from_checkpoint(ckpt_path)
+    model = module.load_from_checkpoint(ckpt_path)
     model.to(device)
     model.eval()
 
