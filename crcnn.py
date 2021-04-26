@@ -54,8 +54,7 @@ class AttentionBlock(nn.Module):  # should use dropouts for generalization?
         w = [F.softmax(qk_ * self.scaler, dim=-1) for qk_ in qk]
         wv = [torch.einsum("ihk,khj->ihj", w_, v_) for w_, v_ in zip(w, v)]
         wv = [rearrange(wv_, "i h j -> i (h j)") for wv_ in wv]
-        wv_packed, _ = pack_variable_tensors(wv)
-        f = self.f(wv_packed)
+        f = self.f(torch.cat(wv))
 
         return f  # Tensor(n_features, feature_size)
 
@@ -87,17 +86,20 @@ class ContextBlender(nn.Module):
             q_in_dim, qk_out_dim, v_out_dim, n_attention_heads, temparature) for _ in range(n_attention_blocks)])
         self.ffs = nn.ModuleList([FeedForward(q_in_dim, ff_n_hidden)
                                  for _ in range(n_attention_blocks)])
-        self.norm1 = nn.ModuleList([nn.LayerNorm(q_in_dim)
+        self.norms1 = nn.ModuleList([nn.LayerNorm(q_in_dim)
                                    for _ in range(n_attention_blocks)])
-        self.norm2 = nn.ModuleList([nn.LayerNorm(q_in_dim)
+        self.norms2 = nn.ModuleList([nn.LayerNorm(q_in_dim)
                                    for _ in range(n_attention_blocks)])
+        self.ff_pre = FeedForward(q_in_dim, ff_n_hidden)
+        self.ff_post = FeedForward(q_in_dim, ff_n_hidden)
 
     def forward(self, features, memory_long, n_boxes_per_images):
         z = features
         for i in range(self.n_attention_blocks):
-            z = self.norm1[i](z + self.attention_blocks[i]
-                              (z, memory_long, n_boxes_per_images))
-            z = self.norm2[i](z + self.ffs[i](z))
+            z = self.norms1[i](z + self.attention_blocks[i]
+                                  (z, memory_long, n_boxes_per_images))
+            z = self.norms2[i](z + self.ffs[i](z))
+        z = self.ff_post(z)
 
         return z
 
@@ -173,9 +175,9 @@ class ContextRCNN(pl.LightningModule):
 
     def configure_optimizers(self):
         params = [
-            {'params': self.attentions.parameters()},
+            {'params': self.context_blender.parameters()},
         ]
-        if True:
+        if False:
             params.append({'params': self.net.roi_heads.box_head.parameters()})
 
         optimizer = AdamW(params,

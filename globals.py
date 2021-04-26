@@ -34,11 +34,13 @@ memory_long_score_threshold = 0.7
 training_stage2_batch_size = 64
 training_stage2_num_workers = 8
 
-n_attention_blocks = 4
-n_attention_heads = 4
+n_attention_blocks = 2
+n_attention_heads = 16
 ff_n_hidden = 2048
 qk_out_dim = 1024
 v_out_dim = 1024
 attention_softmax_temparature = 1.
 
 mAP_score_threshold = 0.0
+
+coco_dataset_root = "/mnt/nfs/coco"

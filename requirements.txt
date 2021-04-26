@@ -1,4 +1,5 @@
 pytorch-lightning-bolts == 0.3.0
 pillow == 8.1.2
 einops == 0.3.0
+pycocotools == 2.0.2
 
