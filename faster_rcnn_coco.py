@@ -4,15 +4,43 @@ import pytorch_lightning as pl
 import torch
 from torch.optim import SGD
 from torch.optim.lr_scheduler import StepLR
-from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
+from torchvision.models.detection.faster_rcnn import (FasterRCNN,
+                                                      FastRCNNPredictor)
 
 import globals
 from argparse_utils import from_argparse_args
-from faster_rcnn_coco import MyFasterRCNNCoco
+from torchvision.models.detection.backbone_utils import resnet_fpn_backbone
 from metrics import mean_average_precision
 
 
-class MyFasterRCNN(pl.LightningModule):
+def generate_resnet_model(model_id):
+    backbone = resnet_fpn_backbone(model_id, True, trainable_layers=5)
+    n_classes = 91
+    wh = [globals.image_height, globals.image_width]
+    min_size, max_size = min(wh), max(wh)
+    model = FasterRCNN(
+        backbone,
+        n_classes,
+        min_size=min_size, max_size=max_size,
+        image_mean=globals.image_mean,
+        image_std=globals.image_std)
+    in_features = model.roi_heads.box_predictor.cls_score.in_features
+    model.roi_heads.box_predictor = FastRCNNPredictor(
+        in_features, n_classes + 1)
+
+    return model
+
+
+def generate_my_model():
+    if globals.faster_rcnn_backbone == "resnet101":
+        return generate_resnet_model("resnet101")
+    elif globals.faster_rcnn_backbone == "resnet50":
+        return generate_resnet_model("resnet50")
+    else:
+        raise ValueError(f"{globals.faster_rcnn_backbone} is not supported.")
+
+
+class MyFasterRCNNCoco(pl.LightningModule):
     def __init__(self,
                  *args,
                  learning_rate=None,
@@ -23,12 +51,7 @@ class MyFasterRCNN(pl.LightningModule):
         super().__init__(*args, **kwargs)
         self.save_hyperparameters()
 
-        self.net = MyFasterRCNNCoco.load_from_checkpoint(
-            globals.pretrained_faster_rcnn_ckpt_path).net
-        n_classes = globals.n_classes
-        in_features = self.net.roi_heads.box_predictor.cls_score.in_features
-        self.net.roi_heads.box_predictor = FastRCNNPredictor(
-            in_features, n_classes + 1)
+        self.net = generate_my_model()
 
     def training_step(self, batch, batch_idx):
         images, targets = batch

@@ -43,4 +43,5 @@ attention_softmax_temparature = 1.
 
 mAP_score_threshold = 0.0
 
-coco_dataset_root = "/mnt/nfs/coco"
+coco_dataset_root = "/coco"
+pretrained_faster_rcnn_ckpt_path = "pretrained_faster_rcnn.ckpt"
