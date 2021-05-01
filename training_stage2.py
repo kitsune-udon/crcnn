@@ -175,13 +175,13 @@ if __name__ == '__main__':
                     feat = module.net.roi_heads.box_roi_pool(
                         tmp["features"], boxes, tmp["image_sizes"])
 
-                    feat = module.net.roi_heads.box_head(feat)
+                    #feat = module.net.roi_heads.box_head(feat)
 
                     if not len(feat) > 0:
                         continue
 
-                    # feat = F.avg_pool2d(
-                    #    feat, kernel_size=7).squeeze(-1).squeeze(-1)
+                    feat = F.avg_pool2d(
+                        feat, kernel_size=7).squeeze(-1).squeeze(-1)
                     feat = feat.split(boxes_per_image)
 
                     spatiotemporal = get_spatiotemporal(
@@ -201,12 +201,12 @@ if __name__ == '__main__':
             if len(pbf) > 0:
                 pbf = torch.cat(pbf)
             else:
-                pbf = torch.zeros(0, globals.feature_size)
+                pbf = torch.zeros(0, globals.feature_size + 9)
 
             if len(date_ex) > 0:
                 date_ex = torch.cat(date_ex)
             else:
-                date_ex = torch.zeros(0, 1, dtype=torch.float64)
+                date_ex = torch.zeros(0, dtype=torch.float64)
 
             per_box_features[split][loc] = pbf.cpu()
             date_captured_archive[split][loc] = date_ex

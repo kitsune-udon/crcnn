@@ -55,10 +55,11 @@ class MyFasterRCNN(pl.LightningModule):
         self.log("val_map", mAP, on_epoch=True, logger=True)
 
     def configure_optimizers(self):
-        optimizer = SGD(self.parameters(),
-                        lr=self.hparams.learning_rate,
-                        momentum=0.9,
-                        weight_decay=self.hparams.weight_decay)
+        optimizer = SGD(
+            self.parameters(),
+            lr=self.hparams.learning_rate,
+            momentum=0.9,
+            weight_decay=self.hparams.weight_decay)
 
         gamma = 10 ** -(2 / self.hparams.max_epochs)
         scheduler = StepLR(optimizer, 1, gamma=gamma)

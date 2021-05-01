@@ -19,27 +19,27 @@ image_width = 320
 image_height = 320
 image_mean = (0.5, 0.5, 0.5)
 image_std = (0.25, 0.25, 0.25)
-horizontal_flip_rate = 0.5
+horizontal_flip_rate = 0.
 
-feature_size = 1024
+feature_size = 256
 
 faster_rcnn_ckpt_path = "best_faster_rcnn.ckpt"
 crcnn_ckpt_path = "best_crcnn.ckpt"
 memory_long_path = "memory_long.pt"
 memory_long_date_path = "memory_long_date.pt"
-memory_long_max_features_per_image = 1 # None is acceptable
+memory_long_max_features_per_image = None # None is acceptable
 memory_long_interval = (-30 * 24 * 60 * 60, 30 * 24 * 60 * 60)
-memory_long_score_threshold = 0.7
+memory_long_score_threshold = 0.5
 
 training_stage2_batch_size = 64
 training_stage2_num_workers = 8
 
 n_attention_blocks = 2
 n_attention_heads = 16
-ff_n_hidden = 2048
-qk_out_dim = 1024
-v_out_dim = 1024
-attention_softmax_temparature = 1.
+ff_n_hidden = 1024
+qk_out_dim = 256
+v_out_dim = 256
+attention_softmax_temparature = 0.01
 
 mAP_score_threshold = 0.0
 

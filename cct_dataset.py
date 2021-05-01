@@ -112,6 +112,9 @@ class CCTDataset(Dataset):
         memory_long = clip_memory_long(
             memory_long, memory_long_date, date_captured)
 
+        if len(memory_long) == 0:
+            memory_long = torch.zeros(1, memory_long.shape[1])
+
         return memory_long
 
 

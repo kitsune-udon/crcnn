@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
-from torch.optim import AdamW
+from torch.optim import SGD
 from torch.optim.lr_scheduler import StepLR
 
 import globals
@@ -87,21 +87,23 @@ class ContextBlender(nn.Module):
         self.ffs = nn.ModuleList([FeedForward(q_in_dim, ff_n_hidden)
                                  for _ in range(n_attention_blocks)])
         self.norms1 = nn.ModuleList([nn.LayerNorm(q_in_dim)
-                                   for _ in range(n_attention_blocks)])
+                                     for _ in range(n_attention_blocks)])
         self.norms2 = nn.ModuleList([nn.LayerNorm(q_in_dim)
-                                   for _ in range(n_attention_blocks)])
+                                     for _ in range(n_attention_blocks)])
         self.ff_pre = FeedForward(q_in_dim, ff_n_hidden)
         self.ff_post = FeedForward(q_in_dim, ff_n_hidden)
 
     def forward(self, features, memory_long, n_boxes_per_images):
         z = features
+        z = F.avg_pool2d(z, kernel_size=7).squeeze(-1).squeeze(-1)
         for i in range(self.n_attention_blocks):
             z = self.norms1[i](z + self.attention_blocks[i]
-                                  (z, memory_long, n_boxes_per_images))
+                               (z, memory_long, n_boxes_per_images))
             z = self.norms2[i](z + self.ffs[i](z))
         z = self.ff_post(z)
+        z = z.unsqueeze(-1).unsqueeze(-1)
 
-        return z
+        return features + z
 
 
 def prepare_faster_rcnn(crcnn_module, tmp):
@@ -119,7 +121,7 @@ def prepare_faster_rcnn(crcnn_module, tmp):
         return crcnn_module.context_blender(features, tmp["memory_long"], n_boxes_per_images)
 
     crcnn_module.net.roi_heads.box_roi_pool.register_forward_pre_hook(hook)
-    crcnn_module.net.roi_heads.box_predictor.register_forward_pre_hook(hook2)
+    crcnn_module.net.roi_heads.box_head.register_forward_pre_hook(hook2)
 
 
 class ContextRCNN(pl.LightningModule):
@@ -180,9 +182,11 @@ class ContextRCNN(pl.LightningModule):
         if False:
             params.append({'params': self.net.roi_heads.box_head.parameters()})
 
-        optimizer = AdamW(params,
-                          lr=self.hparams.learning_rate,
-                          weight_decay=self.hparams.weight_decay)
+        optimizer = SGD(
+            params,
+            lr=self.hparams.learning_rate,
+            momentum=0.9,
+            weight_decay=self.hparams.weight_decay)
 
         gamma = 10 ** -(2 / self.hparams.max_epochs)
         scheduler = StepLR(optimizer, 1, gamma=gamma)
@@ -195,8 +199,8 @@ class ContextRCNN(pl.LightningModule):
 
     @staticmethod
     def add_argparse_args(parser):
-        parser.add_argument('--learning_rate', type=float, default=0.001)
-        parser.add_argument('--weight_decay', type=float, default=0.05)
+        parser.add_argument('--learning_rate', type=float, default=0.003)
+        parser.add_argument('--weight_decay', type=float, default=5e-4)
 
         return parser
 
